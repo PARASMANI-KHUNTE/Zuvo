@@ -111,7 +111,6 @@ const startWorker = async () => {
             retryDelay = Math.min(retryDelay * 2, 30000);
         }
     }
-}
 };
 
 
