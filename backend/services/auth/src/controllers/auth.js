@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const { asyncHandler, MessageBus, logger, models } = require("@zuvo/shared");
-const User = models.User();
+const { asyncHandler, MessageBus, logger } = require("@zuvo/shared");
+const User = require("../models/User");
 
 
 

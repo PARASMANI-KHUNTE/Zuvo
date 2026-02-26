@@ -5,7 +5,8 @@ const {
     getPosts,
     getPost,
     updatePost,
-    deletePost
+    deletePost,
+    getInternalPost
 } = require("../controllers/blog");
 const { authenticate } = require("@zuvo/shared");
 
@@ -90,6 +91,9 @@ router.route("/:id")
     .get(getPost)
     .put(authenticate, updatePost)
     .delete(authenticate, deletePost);
+
+// Internal route
+router.get("/internal/:id", getInternalPost);
 
 module.exports = router;
 

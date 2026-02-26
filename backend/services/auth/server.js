@@ -7,7 +7,7 @@ const rateLimit = require("express-rate-limit");
 dotenv.config();
 process.env.SERVICE_NAME = "auth-service";
 
-const { connectDB, logger, requestTrace, initTracing, metrics, faultInjection, errorHandler } = require("@zuvo/shared");
+const { connectDB, logger, requestTrace, initTracing, metrics, faultInjection, errorHandler, HealthCheck } = require("@zuvo/shared");
 const passport = require("passport");
 require("./src/config/passport");
 
@@ -45,10 +45,20 @@ connectDB();
 // Routes
 app.use("/api/v1/auth", authRoutes);
 
+// Health Checks
+app.get("/health", async (req, res) => {
+    res.status(200).json(await HealthCheck.getHealth());
+});
+
+app.get("/ready", async (req, res) => {
+    const ready = await HealthCheck.getReady();
+    res.status(ready.status === "UP" ? 200 : 503).json(ready);
+});
+
 // Error Handling
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    logger.info(`Auth service is running on port ${PORT}`);
 });

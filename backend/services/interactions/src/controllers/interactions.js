@@ -1,6 +1,5 @@
-const { asyncHandler, logger, redisClient, MessageBus, models } = require("@zuvo/shared");
-const Comment = models.Comment();
-const Post = models.Post();
+const { asyncHandler, logger, redisClient, MessageBus, internalServices } = require("@zuvo/shared");
+const Comment = require("../models/Comment");
 
 /**
  * @desc    Add comment to a post
@@ -27,7 +26,7 @@ exports.addComment = asyncHandler(async (req, res, next) => {
     // FIX G1: Fetch the post to get the real author, then notify them
     // FIX G2: MessageBus imported at top level
     try {
-        const post = await Post.findById(postId).select("author");
+        const post = await internalServices.getPost(postId);
         if (post && post.author.toString() !== req.user.id.toString()) {
             // Only notify if commenter != post author (no self-notifications)
             await MessageBus.publish("zuvo_tasks", {
