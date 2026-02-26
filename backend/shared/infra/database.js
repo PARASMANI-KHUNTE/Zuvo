@@ -3,8 +3,9 @@ const logger = require("./logger");
 
 const connectDB = async () => {
     try {
-        const mongoURI = process.env.MONGODB_URI
-            ? `${process.env.MONGODB_URI}/${process.env.DB_NAME || "zuvo"}`
+        const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
+        const mongoURI = uri
+            ? `${uri}/${process.env.DB_NAME || "zuvo"}`
             : "mongodb://localhost:27017/zuvo";
 
         await mongoose.connect(mongoURI);

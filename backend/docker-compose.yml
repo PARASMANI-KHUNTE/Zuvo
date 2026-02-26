@@ -33,7 +33,7 @@ services:
     build: ./services/auth
     environment:
       - PORT=8000
-      - MONGO_URI=mongodb://mongodb:27017/Zuvo
+      - MONGODB_URI=mongodb://mongodb:27017/Zuvo
       - REDIS_URL=redis://redis:6379
     depends_on:
       - mongodb
@@ -43,7 +43,7 @@ services:
     build: ./services/blog
     environment:
       - PORT=8001
-      - MONGO_URI=mongodb://mongodb:27017/Zuvo
+      - MONGODB_URI=mongodb://mongodb:27017/Zuvo
       - REDIS_URL=redis://redis:6379
     depends_on:
       - mongodb
@@ -53,7 +53,7 @@ services:
     build: ./services/interactions
     environment:
       - PORT=8002
-      - MONGO_URI=mongodb://mongodb:27017/Zuvo
+      - MONGODB_URI=mongodb://mongodb:27017/Zuvo
       - REDIS_URL=redis://redis:6379
     depends_on:
       - mongodb
@@ -63,7 +63,7 @@ services:
     build: ./services/media
     environment:
       - PORT=8003
-      - MONGO_URI=mongodb://mongodb:27017/Zuvo
+      - MONGODB_URI=mongodb://mongodb:27017/Zuvo
       - REDIS_URL=redis://redis:6379
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}

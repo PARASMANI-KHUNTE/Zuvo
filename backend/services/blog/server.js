@@ -41,6 +41,9 @@ app.use("/api", limiter);
 
 // Database Connection
 connectDB();
+const { connectRedis } = require("@zuvo/shared");
+connectRedis();
+
 
 // Routes
 app.use("/api/v1/blogs", blogRoutes);

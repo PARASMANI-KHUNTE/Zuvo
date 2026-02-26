@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const slugify = require("slugify");
-const { softDelete } = require("@zuvo/shared");
+const softDelete = require("../softDelete");
 
 const postSchema = new mongoose.Schema({
 

@@ -3,7 +3,7 @@ const { getNodeAutoInstrumentations } = require("@opentelemetry/auto-instrumenta
 const { JaegerExporter } = require("@opentelemetry/exporter-jaeger");
 const { Resource } = require("@opentelemetry/resources");
 const { SemanticResourceAttributes } = require("@opentelemetry/semantic-conventions");
-const { logger } = require("./logger");
+const logger = require("./logger");
 
 /**
  * OpenTelemetry Tracing Configuration

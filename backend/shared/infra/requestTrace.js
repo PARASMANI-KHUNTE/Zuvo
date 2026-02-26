@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require("uuid");
 const { AsyncLocalStorage } = require("async_hooks");
-const logger = require("../utils/logger");
+const logger = require("./logger");
 
 const asyncLocalStorage = new AsyncLocalStorage();
 

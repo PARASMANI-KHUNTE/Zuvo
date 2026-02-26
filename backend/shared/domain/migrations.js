@@ -1,4 +1,8 @@
+const mongoose = require("mongoose");
+const fs = require("fs");
+const path = require("path");
 const { redisClient } = require("../infra/redis");
+const logger = require("../infra/logger");
 
 const MigrationSchema = new mongoose.Schema({
     name: { type: String, unique: true },

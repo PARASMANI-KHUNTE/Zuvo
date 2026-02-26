@@ -1,3 +1,5 @@
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const { User, asyncHandler } = require("@zuvo/shared");
 
 
@@ -38,7 +40,7 @@ const sendTokenResponse = async (user, statusCode, res) => {
         });
 };
 
-const crypto = require("crypto");
+
 const emailService = require("../services/email.service");
 
 // @route   POST /api/v1/auth/register

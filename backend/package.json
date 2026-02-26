@@ -13,16 +13,20 @@
     "auth:dev": "npm run dev -w services/auth",
     "blog:dev": "npm run dev -w services/blog",
     "gateway:dev": "npm run dev -w gateway",
-    "dev": "npm run dev --workspaces"
+    "dev": "concurrently \"npm run dev -w services/auth\" \"npm run dev -w services/blog\" \"npm run dev -w services/interactions\" \"npm run dev -w services/media\" \"npm run dev -w services/feed\" \"npm run dev -w services/search\" \"npm run dev -w services/realtime\" \"npm run dev -w services/worker\" \"npm run dev -w gateway\""
   },
   "dependencies": {
-    "mongoose": "^9.2.2",
-    "jsonwebtoken": "^9.0.3",
-    "dotenv": "^17.3.1",
-    "helmet": "^8.1.0",
-    "cors": "^2.8.6",
     "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
     "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.2.2",
     "slugify": "^1.6.6"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "nodemon": "^3.1.14"
   }
 }
