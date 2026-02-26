@@ -1,10 +1,40 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, Lock, ArrowRight, Github } from "lucide-react";
+import { Mail, Lock, ArrowRight, Github, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import apiClient from "@/lib/api";
 
 export default function LoginPage() {
+    const router = useRouter();
+    const [formData, setFormData] = useState({
+        email: "",
+        password: "",
+    });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+        setError(null);
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError(null);
+
+        try {
+            await apiClient.post("/auth/login", formData);
+            router.push("/dashboard");
+        } catch (err: any) {
+            setError(err.response?.data?.message || "Login failed. Please check your credentials.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="min-h-[80vh] flex items-center justify-center p-6">
             <motion.div
@@ -17,13 +47,23 @@ export default function LoginPage() {
                     <p className="text-slate-400 text-sm">Log in to your Zuvo account to continue.</p>
                 </div>
 
-                <form className="space-y-4">
+                <form className="space-y-4" onSubmit={handleSubmit}>
+                    {error && (
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
+                            <p className="text-red-400 text-sm font-medium">{error}</p>
+                        </div>
+                    )}
+
                     <div className="space-y-2">
                         <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Email Address</label>
                         <div className="relative group">
                             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-primary transition-colors" />
                             <input
                                 type="email"
+                                name="email"
+                                required
+                                value={formData.email}
+                                onChange={handleChange}
                                 placeholder="name@example.com"
                                 className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 outline-none focus:border-primary/50 transition-all text-sm"
                             />
@@ -36,6 +76,10 @@ export default function LoginPage() {
                             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-primary transition-colors" />
                             <input
                                 type="password"
+                                name="password"
+                                required
+                                value={formData.password}
+                                onChange={handleChange}
                                 placeholder="••••••••"
                                 className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 outline-none focus:border-primary/50 transition-all text-sm"
                             />
@@ -46,8 +90,18 @@ export default function LoginPage() {
                         <Link href="#" className="text-xs text-primary hover:underline">Forgot password?</Link>
                     </div>
 
-                    <button className="btn-primary w-full flex items-center justify-center gap-2 group">
-                        Sign In <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="btn-primary w-full flex items-center justify-center gap-2 group h-[46px]"
+                    >
+                        {loading ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                            <>
+                                Sign In <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                            </>
+                        )}
                     </button>
                 </form>
 
