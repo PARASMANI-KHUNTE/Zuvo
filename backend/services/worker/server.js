@@ -1,9 +1,10 @@
 const dotenv = require("dotenv");
+const express = require("express");
 const { trace, context, propagation } = require("@opentelemetry/api");
-const { logger, connectRedis, MessageBus, redisClient, connectDB, initTracing, metrics, faultInjection } = require("@zuvo/shared");
+const { logger, connectRedis, MessageBus, redisClient, connectDB, initTracing, metrics, faultInjection, HealthCheck } = require("@zuvo/shared");
 
 dotenv.config();
-process.env.SERVICE_NAME = "worker-service";
+process.env.SERVICE_NAME = process.env.SERVICE_NAME || "worker-service";
 
 // Initialize Tracing FIRST
 initTracing(process.env.SERVICE_NAME);
@@ -21,6 +22,20 @@ const CONSUMER_NAME = `worker_${process.pid}`;
 const startWorker = async () => {
     await connectDB();
     await connectRedis();
+
+    // Expose a health check port
+    const app = express();
+    app.get("/health", async (req, res) => {
+        res.status(200).json(await HealthCheck.getHealth());
+    });
+    app.get("/ready", async (req, res) => {
+        const ready = await HealthCheck.getReady();
+        res.status(ready.status === "UP" ? 200 : 503).json(ready);
+    });
+    const HEALTH_PORT = process.env.HEALTH_PORT || 8008;
+    app.listen(HEALTH_PORT, () => {
+        logger.info(`Worker health check server running on port ${HEALTH_PORT}`);
+    });
 
 
     // Ensure consumer group exists
@@ -134,38 +149,11 @@ const handleTask = async (task) => {
             await new Promise(resolve => setTimeout(resolve, 500));
             break;
         case "GDPR_DELETE_USER":
-            logger.info(`GDPR: Scrubbing all PII for user ${task.userId}`);
-            try {
-                const { models } = require("@zuvo/shared");
-                const User = models.User();
-                const Post = models.Post();
-                const Message = models.Message();
-
-                // 1. Anonymize User record
-                await User.findByIdAndUpdate(task.userId, {
-                    name: "[DELETED USER]",
-                    email: `deleted_${task.userId}@gdpr.zuvo.com`,
-                    password: undefined,
-                    googleId: undefined,
-                    verificationToken: undefined,
-                    // resetPasswordOTP: undefined, // Fix key name if necessary
-                    refreshTokens: []
-                });
-
-                // 2. Soft-delete and anonymize all Posts
-                await Post.updateMany(
-                    { author: task.userId },
-                    { isDeleted: true, content: "[DELETED BY USER REQUEST]", title: "[DELETED]" }
-                );
-
-                // 3. Anonymize all Chat messages
-                await Message.updateMany({ sender: task.userId }, { content: "[DELETED]" });
-
-                logger.info(`GDPR successfully processed for user ${task.userId}`);
-            } catch (err) {
-                logger.error(`GDPR scrubbing failed for user ${task.userId}`, err);
-                throw err;
-            }
+            logger.info(`GDPR: Initiating scrubbing for user ${task.userId}`);
+            await MessageBus.publish("zuvo_tasks", {
+                type: "GDPR_USER_DELETE",
+                userId: task.userId
+            });
             break;
         case "SAVE_CHAT_MESSAGE":
             logger.info(`Persisting chat message for conversation ${task.conversationId}`);
@@ -215,3 +203,99 @@ const handleFailure = async (id, task, error) => {
 };
 
 startWorker().catch(err => logger.error("Fatal Worker Error", err));
+
+// GDPR Listener for Auth Service
+const startGDPRListener = async () => {
+    await MessageBus.createConsumerGroup("zuvo_tasks", "auth_gdpr_group");
+
+    while (true) {
+        try {
+            const results = await redisClient.xReadGroup(
+                "auth_gdpr_group",
+                "auth_worker",
+                { key: "zuvo_tasks", id: ">" },
+                { COUNT: 1, BLOCK: 5000 }
+            );
+
+            if (results) {
+                for (const stream of results) {
+                    for (const message of stream.messages) {
+                        const { id, message: data } = message;
+                        const task = JSON.parse(data.data);
+
+                        if (task.type === "GDPR_USER_DELETE") {
+                            const User = require("./src/models/User");
+                            logger.info(`GDPR: Scrubbing Auth data for user ${task.userId}`);
+                            await User.findByIdAndUpdate(task.userId, {
+                                name: "[DELETED USER]",
+                                email: `deleted_${task.userId}@gdpr.zuvo.com`,
+                                password: undefined,
+                                googleId: undefined,
+                                refreshTokens: []
+                            });
+                        }
+                        await redisClient.xAck("zuvo_tasks", "auth_gdpr_group", id);
+                    }
+                }
+            }
+        } catch (err) {
+            logger.error("GDPR Listener Error (Auth)", err);
+            await new Promise(r => setTimeout(r, 5000));
+        }
+    }
+};
+
+if (process.env.SERVICE_NAME === "auth-service") {
+    startGDPRListener();
+}
+
+// GDPR Listener for Blog Service
+const startBlogGDPRListener = async () => {
+    await MessageBus.createConsumerGroup("zuvo_tasks", "blog_gdpr_group");
+    while (true) {
+        try {
+            const results = await redisClient.xReadGroup("blog_gdpr_group", "blog_worker", { key: "zuvo_tasks", id: ">" }, { COUNT: 1, BLOCK: 5000 });
+            if (results) {
+                for (const stream of results) {
+                    for (const message of stream.messages) {
+                        const { id, message: data } = message;
+                        const task = JSON.parse(data.data);
+                        if (task.type === "GDPR_USER_DELETE") {
+                            const Post = require("./src/models/Post");
+                            logger.info(`GDPR: Scrubbing Blog data for user ${task.userId}`);
+                            await Post.updateMany({ author: task.userId }, { isDeleted: true, content: "[DELETED BY USER REQUEST]", title: "[DELETED]" });
+                        }
+                        await redisClient.xAck("zuvo_tasks", "blog_gdpr_group", id);
+                    }
+                }
+            }
+        } catch (err) { logger.error("GDPR Listener Error (Blog)", err); await new Promise(r => setTimeout(r, 5000)); }
+    }
+};
+
+// GDPR Listener for Chat Service
+const startChatGDPRListener = async () => {
+    await MessageBus.createConsumerGroup("zuvo_tasks", "chat_gdpr_group");
+    while (true) {
+        try {
+            const results = await redisClient.xReadGroup("chat_gdpr_group", "chat_worker", { key: "zuvo_tasks", id: ">" }, { COUNT: 1, BLOCK: 5000 });
+            if (results) {
+                for (const stream of results) {
+                    for (const message of stream.messages) {
+                        const { id, message: data } = message;
+                        const task = JSON.parse(data.data);
+                        if (task.type === "GDPR_USER_DELETE") {
+                            const Message = require("./src/models/Message");
+                            logger.info(`GDPR: Scrubbing Chat data for user ${task.userId}`);
+                            await Message.updateMany({ sender: task.userId }, { content: "[DELETED]" });
+                        }
+                        await redisClient.xAck("zuvo_tasks", "chat_gdpr_group", id);
+                    }
+                }
+            }
+        } catch (err) { logger.error("GDPR Listener Error (Chat)", err); await new Promise(r => setTimeout(r, 5000)); }
+    }
+};
+
+if (process.env.SERVICE_NAME === "blog-service") startBlogGDPRListener();
+if (process.env.SERVICE_NAME === "chat-service") startChatGDPRListener();

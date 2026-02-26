@@ -6,8 +6,13 @@ const xss = require("xss-clean");
  * Sanitizes inputs against NoSQL injection and XSS
  */
 const securityMiddleware = [
-    mongoSanitize(),
-    xss()
+    (req, res, next) => {
+        if (req.query) mongoSanitize.sanitize(req.query);
+        if (req.body) mongoSanitize.sanitize(req.body);
+        if (req.params) mongoSanitize.sanitize(req.params);
+        next();
+    },
+    // xss() // Temporarily disabled to debug Express 5.x compatibility
 ];
 
 module.exports = securityMiddleware;

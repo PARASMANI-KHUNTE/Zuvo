@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+reviews:
+  profile: "assertive"
+  request_reviews_from_completions: true
+  auto_review:
+    enabled: true
+    draft: false
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/.next/**"
+    - "!**/package-lock.json"
+    - "!**/yarn.lock"
+    - "!**/pnpm-lock.yaml"
+chat:
+  enabled: true
+instructions:
+  - "Enforce strict microservice boundaries. No cross-service model imports."
+  - "Flag any blocking I/O inside request lifecycle."
+  - "Ensure all inter-service calls use retries or circuit breaker patterns."
+  - "Verify Correlation ID propagation from Gateway to downstream services."
+  - "Ensure worker jobs implement idempotency and DLQ handling."
+  - "Validate refresh token and OTP hashing security patterns."

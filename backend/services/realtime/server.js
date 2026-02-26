@@ -1,4 +1,5 @@
 const http = require("http");
+const express = require("express");
 const { Server } = require("socket.io");
 const { createAdapter } = require("@socket.io/redis-adapter");
 const jwt = require("jsonwebtoken");
@@ -7,11 +8,22 @@ const dotenv = require("dotenv");
 dotenv.config();
 process.env.SERVICE_NAME = "realtime-service";
 
-const { redisClient, logger, connectRedis, MessageBus, initTracing, metrics, faultInjection } = require("@zuvo/shared");
+const { redisClient, logger, connectRedis, MessageBus, initTracing, metrics, faultInjection, HealthCheck } = require("@zuvo/shared");
 
 initTracing("realtime-service");
 
-const httpServer = http.createServer();
+const app = express();
+const httpServer = http.createServer(app);
+
+// Standard health endpoints
+app.get("/health", async (req, res) => {
+    res.status(200).json(await HealthCheck.getHealth());
+});
+
+app.get("/ready", async (req, res) => {
+    const ready = await HealthCheck.getReady();
+    res.status(ready.status === "UP" ? 200 : 503).json(ready);
+});
 const io = new Server(httpServer, {
     cors: {
         origin: process.env.CORS_ORIGIN || "*",
