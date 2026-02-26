@@ -6,8 +6,11 @@ import { useRouter } from "next/navigation";
 import apiClient from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
+import { usePathname } from "next/navigation";
+
 export default function Sidebar() {
     const router = useRouter();
+    const pathname = usePathname();
     const { logout } = useAuth();
 
     const handleLogout = async () => {
@@ -26,16 +29,17 @@ export default function Sidebar() {
         <aside className="fixed left-0 top-24 bottom-6 w-64 ml-6 hidden lg:flex flex-col gap-6">
             {/* Navigation */}
             <div className="glass-panel p-4 flex flex-col gap-1">
-                <SidebarItem icon={<Home className="w-5 h-5" />} label="Home" active />
-                <SidebarItem icon={<Compass className="w-5 h-5" />} label="Explore" />
-                <SidebarItem icon={<Bell className="w-5 h-5" />} label="Notifications" />
-                <SidebarItem icon={<MessageSquare className="w-5 h-5" />} label="Messages" />
-                <SidebarItem icon={<TrendingUp className="w-5 h-5" />} label="Trends" />
+                <SidebarItem icon={<Home className="w-5 h-5" />} label="Home" active={pathname === "/home" || pathname === "/"} onClick={() => router.push("/")} />
+                <SidebarItem icon={<Compass className="w-5 h-5" />} label="Explore" active={pathname === "/explore"} onClick={() => router.push("/explore")} />
+                <SidebarItem icon={<Bell className="w-5 h-5" />} label="Notifications" active={pathname === "/notifications"} onClick={() => router.push("/notifications")} />
+                <SidebarItem icon={<MessageSquare className="w-5 h-5" />} label="Messages" active={pathname === "/messages"} onClick={() => router.push("/messages")} />
             </div>
 
             {/* User Settings */}
             <div className="glass-panel p-4 flex flex-col gap-1 mt-auto">
-                <SidebarItem icon={<Settings className="w-5 h-5" />} label="Settings" />
+                {/* Dummy username used below for preview purposes */}
+                <SidebarItem icon={<TrendingUp className="w-5 h-5" />} label="Profile" active={pathname.startsWith("/profile")} onClick={() => router.push("/profile/arivera_dev")} />
+                <SidebarItem icon={<Settings className="w-5 h-5" />} label="Settings" active={pathname === "/settings"} onClick={() => router.push("/settings")} />
                 <SidebarItem
                     icon={<LogOut className="w-5 h-5 text-red-400" />}
                     label="Logout"
