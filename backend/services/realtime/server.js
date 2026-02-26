@@ -1,21 +1,50 @@
 const http = require("http");
 const { Server } = require("socket.io");
 const { createAdapter } = require("@socket.io/redis-adapter");
-const { redisClient, logger, connectRedis, initTracing, metrics, faultInjection } = require("@zuvo/shared");
-
-initTracing("realtime-service");
-
-
+const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 
 dotenv.config();
 process.env.SERVICE_NAME = "realtime-service";
+
+const { redisClient, logger, connectRedis, MessageBus, initTracing, metrics, faultInjection } = require("@zuvo/shared");
+
+initTracing("realtime-service");
 
 const httpServer = http.createServer();
 const io = new Server(httpServer, {
     cors: {
         origin: process.env.CORS_ORIGIN || "*",
         methods: ["GET", "POST"]
+    },
+    maxHttpBufferSize: 1e6 // 1 MB max message size (fix E3)
+});
+
+// ============================================================
+// FIX E1 (Critical): JWT-based WebSocket Authentication
+// ============================================================
+io.use((socket, next) => {
+    try {
+        // Accept token from handshake auth OR query param (for legacy clients)
+        const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+
+        if (!token) {
+            logger.warn(`WebSocket connection rejected — no token provided`);
+            return next(new Error("Authentication required"));
+        }
+
+        const secret = process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET;
+        const decoded = jwt.verify(token, secret);
+
+        // Attach verified user identity to socket
+        socket.userId = decoded._id;
+        socket.userRole = decoded.role;
+
+        logger.info(`WebSocket authenticated for user ${decoded._id}`);
+        next();
+    } catch (err) {
+        logger.warn(`WebSocket authentication failed: ${err.message}`);
+        next(new Error("Invalid or expired token"));
     }
 });
 
@@ -30,11 +59,10 @@ const startServer = async () => {
     io.adapter(createAdapter(pubClient, subClient));
 
     io.on("connection", (socket) => {
-        const userId = socket.handshake.query.userId;
-        if (userId) {
-            socket.join(`user:${userId}`);
-            logger.info(`User ${userId} connected to WebSocket`);
-        }
+        const userId = socket.userId; // Now comes from verified JWT, not query param
+
+        socket.join(`user:${userId}`);
+        logger.info(`User ${userId} connected to WebSocket`);
 
         // Chat Room Events
         socket.on("chat:join", (conversationId) => {
@@ -43,25 +71,29 @@ const startServer = async () => {
         });
 
         socket.on("chat:message", async (data) => {
-            const { conversationId, content, attachments } = data;
+            try {
+                const { conversationId, content, attachments } = data;
 
-            const messageData = {
-                conversationId,
-                sender: userId,
-                content,
-                attachments,
-                timestamp: new Date()
-            };
+                const messageData = {
+                    conversationId,
+                    sender: userId,
+                    content,
+                    attachments,
+                    timestamp: new Date()
+                };
 
-            // 1. Emit to room for immediate feedback
-            io.to(`room:${conversationId}`).emit("chat:message", messageData);
+                // 1. Emit to room for immediate feedback
+                io.to(`room:${conversationId}`).emit("chat:message", messageData);
 
-            // 2. Publish to MessageBus for persistence (Chat Service Worker)
-            const { MessageBus } = require("@zuvo/shared");
-            await MessageBus.publish("zuvo_tasks", {
-                type: "SAVE_CHAT_MESSAGE",
-                ...messageData
-            });
+                // 2. Publish to MessageBus for persistence (Chat Service Worker)
+                await MessageBus.publish("zuvo_tasks", {
+                    type: "SAVE_CHAT_MESSAGE",
+                    ...messageData
+                });
+            } catch (err) {
+                logger.error(`Error processing chat:message from user ${userId}`, err);
+                socket.emit("error", { message: "Failed to send message" });
+            }
         });
 
         socket.on("chat:typing", (data) => {
@@ -72,20 +104,23 @@ const startServer = async () => {
             });
         });
 
-        socket.on("disconnect", () => {
-            logger.info(`User ${userId} disconnected`);
+        socket.on("disconnect", (reason) => {
+            logger.info(`User ${userId} disconnected: ${reason}`);
         });
     });
-
 
     // Listen for events from other services via Redis
     const internalSub = redisClient.duplicate();
     await internalSub.connect();
 
     await internalSub.subscribe("notifications", (message) => {
-        const data = JSON.parse(message);
-        // data = { userId, type, content }
-        io.to(`user:${data.userId}`).emit("notification", data);
+        try {
+            const data = JSON.parse(message);
+            // data = { userId, type, content }
+            io.to(`user:${data.userId}`).emit("notification", data);
+        } catch (err) {
+            logger.error("Failed to parse notification message", err);
+        }
     });
 
     const PORT = process.env.PORT || 8004;
@@ -96,4 +131,5 @@ const startServer = async () => {
 
 startServer().catch(err => {
     logger.error("Failed to start Real-time service", err);
+    process.exit(1);
 });

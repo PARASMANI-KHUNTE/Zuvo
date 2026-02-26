@@ -1,5 +1,4 @@
 const { asyncHandler, logger } = require("@zuvo/shared");
-
 const { cloudinary } = require("../configs/cloudinary");
 
 /**
@@ -40,4 +39,56 @@ exports.deleteFile = asyncHandler(async (req, res, next) => {
     }
 
     res.status(200).json({ success: true, message: "File deleted successfully" });
+});
+
+/**
+ * @desc    Get a signed download URL (time-limited, secure)
+ * @route   GET /api/v1/media/download/:publicId
+ * @access  Private
+ */
+exports.getDownloadUrl = asyncHandler(async (req, res, next) => {
+    const { publicId } = req.params;
+    const resourceType = req.query.type || "image";
+
+    // Generate a signed, time-limited URL (1 hour expiry)
+    const signedUrl = cloudinary.url(publicId, {
+        resource_type: resourceType,
+        sign_url: true,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour
+        flags: "attachment" // forces download in browser
+    });
+
+    if (!signedUrl) {
+        return res.status(404).json({ success: false, message: "File not found" });
+    }
+
+    logger.info(`Download URL generated for ${publicId}`, { requestId: req.requestId });
+    res.status(200).json({ success: true, data: { downloadUrl: signedUrl, expiresIn: 3600 } });
+});
+
+/**
+ * @desc    Get a streaming URL (for video streaming via Cloudinary)
+ * @route   GET /api/v1/media/stream/:publicId
+ * @access  Public
+ */
+exports.getStreamUrl = asyncHandler(async (req, res, next) => {
+    const { publicId } = req.params;
+    const quality = req.query.quality || "auto";
+
+    // Generate HLS/DASH streaming URL via Cloudinary
+    const streamUrl = cloudinary.url(publicId, {
+        resource_type: "video",
+        streaming_profile: quality,
+        format: "m3u8" // HLS format
+    });
+
+    logger.info(`Stream URL generated for ${publicId}`, { requestId: req.requestId });
+    res.status(200).json({
+        success: true,
+        data: {
+            streamUrl,
+            format: "HLS",
+            publicId
+        }
+    });
 });

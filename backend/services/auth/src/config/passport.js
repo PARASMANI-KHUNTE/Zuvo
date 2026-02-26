@@ -44,17 +44,7 @@ passport.use(new GoogleStrategy({
     }
 }));
 
-passport.serializeUser((user, done) => {
-    done(null, user.id);
-});
-
-passport.deserializeUser(async (id, done) => {
-    try {
-        const user = await User.findById(id);
-        done(null, user);
-    } catch (err) {
-        done(err, null);
-    }
-});
+// Note: serializeUser/deserializeUser are NOT needed because we use JWT (session: false)
+// passport.authenticate("google", { session: false }) — sessions are handled via JWTs
 
 module.exports = passport;

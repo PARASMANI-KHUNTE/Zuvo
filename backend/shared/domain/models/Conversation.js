@@ -23,4 +23,9 @@ const conversationSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
+// FIX K1/D2: Index for participant lookups — critical for "find all conversations for a user"
+conversationSchema.index({ participants: 1 });
+conversationSchema.index({ updatedAt: -1 }); // For sorting by most recent
+
 module.exports = mongoose.model("Conversation", conversationSchema);
+

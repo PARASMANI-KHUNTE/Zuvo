@@ -103,10 +103,10 @@ exports.login = asyncHandler(async (req, res, next) => {
         return res.status(401).json({ success: false, message: "Invalid credentials" });
     }
 
-    // Check if email is verified
+    // FIX B3: Check if email is verified — was returning success:true with 401 (inconsistency)
     if (!user.isVerified) {
-        return res.status(401).json({
-            success: true,
+        return res.status(403).json({
+            success: false,
             message: "Account not verified. Please check your email to verify your account."
         });
     }
@@ -140,15 +140,22 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
     const refreshToken = req.cookies.refreshToken;
 
     if (!refreshToken) {
-        return res.status(401).json({ success: false, message: "No refresh token" });
+        return res.status(401).json({ success: false, message: "No refresh token provided" });
     }
 
-    const user = await User.findOne({ refreshToken });
+    // FIX B1: Verify JWT signature AND expiry BEFORE trusting DB lookup
+    let decoded;
+    try {
+        decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    } catch (err) {
+        return res.status(401).json({ success: false, message: "Refresh token is invalid or has expired" });
+    }
+
+    // Confirm the token exists in DB (validates it hasn't been revoked via logout)
+    const user = await User.findOne({ _id: decoded._id, refreshToken }).select("+refreshToken");
     if (!user) {
-        return res.status(401).json({ success: false, message: "Invalid refresh token" });
+        return res.status(401).json({ success: false, message: "Refresh token has been revoked" });
     }
-
-    // Optional: Verify token with jwt.verify if you want to check expiry explicitly
 
     sendTokenResponse(user, 200, res);
 });
@@ -186,8 +193,8 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
         return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // FIX B4: Use crypto.randomInt for cryptographically secure OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
 
     user.resetPasswordOTP = otp;
     user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes

@@ -20,7 +20,6 @@ exports.createPost = asyncHandler(async (req, res, next) => {
         requestId: req.requestId
     });
 
-
     // Background Tasks
     await MessageBus.publish("zuvo_tasks", {
         type: "FEED_FANOUT",
@@ -43,15 +42,28 @@ exports.createPost = asyncHandler(async (req, res, next) => {
 
 // @route   GET /api/v1/blogs
 // @access  Public
+// FIX C1: Added pagination — page & limit query params
 exports.getPosts = asyncHandler(async (req, res, next) => {
-    const posts = await Post.find({ status: "published" }).populate({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const total = await Post.countDocuments({ status: "published", isDeleted: { $ne: true } });
+
+    const posts = await Post.find({ status: "published", isDeleted: { $ne: true } }).populate({
         path: "author",
         select: "name username"
-    });
+    })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
 
     res.status(200).json({
         success: true,
         count: posts.length,
+        total,
+        page,
+        pages: Math.ceil(total / limit),
         data: posts
     });
 });
@@ -122,7 +134,6 @@ exports.updatePost = asyncHandler(async (req, res, next) => {
     });
 
     res.status(200).json({
-
         success: true,
         data: post
     });

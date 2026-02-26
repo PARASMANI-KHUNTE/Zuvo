@@ -1,4 +1,4 @@
-const { Comment, asyncHandler, logger, redisClient } = require("@zuvo/shared");
+const { Comment, asyncHandler, logger, redisClient, MessageBus, Post } = require("@zuvo/shared");
 
 /**
  * @desc    Add comment to a post
@@ -8,6 +8,10 @@ const { Comment, asyncHandler, logger, redisClient } = require("@zuvo/shared");
 exports.addComment = asyncHandler(async (req, res, next) => {
     const { postId, content, parentCommentId } = req.body;
 
+    if (!postId || !content) {
+        return res.status(400).json({ success: false, message: "postId and content are required" });
+    }
+
     const comment = await Comment.create({
         post: postId,
         user: req.user.id,
@@ -15,56 +19,80 @@ exports.addComment = asyncHandler(async (req, res, next) => {
         parentComment: parentCommentId || null
     });
 
-    // In a high-scale system, we'd also increment a counter in Redis or Mongo
-    const { MessageBus } = require("@zuvo/shared");
+    // Increment comment counter atomically in Redis
     await redisClient.incr(`post:${postId}:comments`);
 
-    // Enterprise-grade Event Publishing
-    await MessageBus.publish("zuvo_tasks", {
-        type: "NOTIFICATION",
-        userId: "target_user_id", // Should be fetched from Post author
-        notificationType: "COMMENT",
-        content: `Someone commented on your post: ${content.substring(0, 20)}...`
-    });
+    // FIX G1: Fetch the post to get the real author, then notify them
+    // FIX G2: MessageBus imported at top level
+    try {
+        const post = await Post.findById(postId).select("author");
+        if (post && post.author.toString() !== req.user.id.toString()) {
+            // Only notify if commenter != post author (no self-notifications)
+            await MessageBus.publish("zuvo_tasks", {
+                type: "NOTIFICATION",
+                userId: post.author.toString(),
+                notificationType: "COMMENT",
+                actorId: req.user.id,
+                content: `${req.user.name || "Someone"} commented on your post: "${content.substring(0, 30)}..."`
+            });
+        }
+    } catch (notifyErr) {
+        // Non-fatal — log but don't fail the request
+        logger.warn(`Failed to send comment notification: ${notifyErr.message}`);
+    }
 
     res.status(201).json({ success: true, data: comment });
-
-
 });
 
 /**
  * @desc    Like or Dislike a post (with atomic Redis counters)
  * @route   POST /api/v1/interactions/like
  * @access  Private
+ * FIX G3: Separate like/dislike counters to handle state transitions correctly
  */
 exports.toggleLike = asyncHandler(async (req, res, next) => {
     const { postId, action } = req.body; // action: 'like' or 'dislike'
     const userId = req.user.id;
 
+    if (!postId || !["like", "dislike"].includes(action)) {
+        return res.status(400).json({ success: false, message: "postId and action (like/dislike) are required" });
+    }
+
     const likeKey = `post:${postId}:likes`;
+    const dislikeKey = `post:${postId}:dislikes`;
     const userVotedKey = `post:${postId}:user:${userId}:voted`;
 
     const existingVote = await redisClient.get(userVotedKey);
 
     if (existingVote === action) {
-        // Remove vote if clicking the same button
-        await redisClient.decr(likeKey);
+        // Undo the same vote (toggle off)
+        if (action === "like") await redisClient.decr(likeKey);
+        else await redisClient.decr(dislikeKey);
         await redisClient.del(userVotedKey);
         return res.status(200).json({ success: true, message: `${action} removed` });
     }
 
-    // Change or add vote
     if (existingVote) {
-        // If they liked and now dislike, we need to handle that. 
-        // For simplicity, let's just assume one counter for "Value" (positive/negative)
-        // or separate keys. Let's use one key for simplicity in this demo.
-        await redisClient.decr(likeKey);
+        // Switching vote: undo old vote first
+        if (existingVote === "like") await redisClient.decr(likeKey);
+        else await redisClient.decr(dislikeKey);
     }
 
-    await redisClient.incr(likeKey);
+    // Apply new vote
+    if (action === "like") await redisClient.incr(likeKey);
+    else await redisClient.incr(dislikeKey);
     await redisClient.set(userVotedKey, action);
 
-    res.status(200).json({ success: true, message: `Post ${action}d` });
+    const [likes, dislikes] = await Promise.all([
+        redisClient.get(likeKey),
+        redisClient.get(dislikeKey)
+    ]);
+
+    res.status(200).json({
+        success: true,
+        message: `Post ${action}d`,
+        data: { likes: parseInt(likes) || 0, dislikes: parseInt(dislikes) || 0 }
+    });
 });
 
 /**

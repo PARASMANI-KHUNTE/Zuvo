@@ -116,13 +116,26 @@ const handleTask = async (task) => {
         case "GDPR_DELETE_USER":
             logger.info(`GDPR: Scrubbing all PII for user ${task.userId}`);
             try {
-                // 1. Scrub from Auth (hard delete or anonymize)
-                // 2. Soft-delete all Blogs
-                const { Post, User, Message, Conversation } = require("@zuvo/shared");
-                await Post.updateMany({ author: task.userId }, { isDeleted: true, content: "[DELETED BY USER REQUEST]" });
+                const { Post, User, Message } = require("@zuvo/shared");
 
-                // 3. Scrub from Chat
-                const Message = require("../chat/src/models/Message");
+                // 1. Anonymize User record (do not hard delete to preserve referential integrity)
+                await User.findByIdAndUpdate(task.userId, {
+                    name: "[DELETED USER]",
+                    email: `deleted_${task.userId}@gdpr.zuvo.com`,
+                    password: undefined,
+                    googleId: undefined,
+                    verificationToken: undefined,
+                    resetPasswordOTP: undefined,
+                    refreshToken: undefined
+                });
+
+                // 2. Soft-delete and anonymize all Posts
+                await Post.updateMany(
+                    { author: task.userId },
+                    { isDeleted: true, content: "[DELETED BY USER REQUEST]", title: "[DELETED]" }
+                );
+
+                // 3. Anonymize all Chat messages (content scrubbed, record preserved for thread integrity)
                 await Message.updateMany({ sender: task.userId }, { content: "[DELETED]" });
 
                 logger.info(`GDPR successfully processed for user ${task.userId}`);
