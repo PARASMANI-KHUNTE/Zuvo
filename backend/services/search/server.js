@@ -2,9 +2,6 @@ const express = require("express");
 const dotenv = require("dotenv");
 const { logger, requestTrace, connectRedis, redisClient, connectDB, initTracing, metrics, faultInjection, errorHandler, authenticate, internalServices, HealthCheck } = require("@zuvo/shared");
 const Post = require("./src/models/Post");
-const Post = require("./src/models/Post"); // Wait, search needs its own copy or we use Blog's? Better to have a SearchPost model or use shared if it's a search index.
-// Actually, Search service often uses a different DB (like ElasticSearch). Here it uses Mongo.
-// If it uses Mongo, it needs a model.
 
 dotenv.config();
 process.env.SERVICE_NAME = "search-service";
