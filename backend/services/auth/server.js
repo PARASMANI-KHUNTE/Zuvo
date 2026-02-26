@@ -7,16 +7,17 @@ const rateLimit = require("express-rate-limit");
 dotenv.config();
 process.env.SERVICE_NAME = "auth-service";
 
-const { connectDB, logger, requestTrace, initTracing } = require("@zuvo/shared");
+const { connectDB, logger, requestTrace, initTracing, metrics, faultInjection, errorHandler } = require("@zuvo/shared");
+const passport = require("passport");
+require("./src/config/passport");
 
 initTracing("auth-service");
-
-
-const errorHandler = require("./src/middleware/errorHandler");
 const authRoutes = require("./src/routes/auth");
 
 const app = express();
 app.use(requestTrace);
+app.use(metrics.metricsMiddleware("auth-service"));
+app.use(faultInjection);
 
 
 // Security Middlewares
@@ -28,6 +29,7 @@ app.use(cors({
 app.use(cookieParser());
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
+app.use(passport.initialize());
 
 // Rate Limiting
 const limiter = rateLimit({

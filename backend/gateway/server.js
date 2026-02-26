@@ -3,7 +3,12 @@ const dotenv = require("dotenv");
 const helmet = require("helmet");
 const cors = require("cors");
 const morgan = require("morgan");
-const { logger, requestTrace, metrics, security, initTracing } = require("@zuvo/shared");
+const swaggerUi = require("swagger-ui-express");
+const swaggerDocs = require("./src/docs/swagger");
+const contractValidator = require("./src/middleware/contractValidator");
+
+const { logger, requestTrace, metrics, security, initTracing, versioning, faultInjection } = require("@zuvo/shared");
+
 
 // Initialize Tracing FIRST
 initTracing("gateway");
@@ -24,9 +29,16 @@ const server = http.createServer(app);
 app.use(security);
 
 // Trace requests
-app.use(metrics.metricsMiddleware);
+app.use(versioning("v1"));
+app.use(metrics.metricsMiddleware("gateway"));
+app.use(faultInjection);
+app.use(contractValidator);
+
+// API Documentation
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 app.use(requestTrace);
+
 
 
 // Security and Logging

@@ -1,44 +1,70 @@
-const connectDB = require("./configs/database");
-const logger = require("./utils/logger");
-const { redisClient, connectRedis } = require("./utils/redis");
-const createCircuitBreaker = require("./utils/resilience");
-const MessageBus = require("./utils/messageBus");
-const metrics = require("./utils/metrics");
+// Infrastructure Layer (Core Utilities)
+const connectDB = require("./infra/database");
+const logger = require("./infra/logger");
+const { redisClient, connectRedis } = require("./infra/redis");
+const createCircuitBreaker = require("./infra/resilience");
+const MessageBus = require("./infra/messageBus");
+const metrics = require("./infra/metrics");
+const asyncHandler = require("./infra/asyncHandler");
+const { requestTrace, asyncLocalStorage } = require("./infra/requestTrace");
+const { initTracing } = require("./infra/tracing");
+const secrets = require("./infra/secrets");
+const faultInjection = require("./infra/faultInjection");
+const errorHandler = require("./infra/errorHandler");
 
-// Middlewares
-const { authenticate, authorize } = require("./middleware/auth");
-const asyncHandler = require("./middleware/asyncHandler");
-const { requestTrace, asyncLocalStorage } = require("./middleware/requestTrace");
-const rateLimiter = require("./middleware/rateLimiter");
-const security = require("./middleware/security");
-const validator = require("./middleware/validator");
-const softDelete = require("./utils/softDelete");
-const audit = require("./utils/audit");
-const versioning = require("./middleware/versioning");
-const { initTracing } = require("./utils/tracing");
+// Domain Layer (Business Rules & Plugins)
+const { authenticate, authorize } = require("./domain/auth");
+const rateLimiter = require("./domain/rateLimiter");
+const security = require("./domain/security");
+const validator = require("./domain/validator");
+const softDelete = require("./domain/softDelete");
+const audit = require("./domain/audit");
+const versioning = require("./domain/versioning");
+const MigrationRunner = require("./domain/migrations");
 
+// Models (Centralized Domain Objects)
+const User = require("./domain/models/User");
+const Post = require("./domain/models/Post");
+const Message = require("./domain/models/Message");
+const Conversation = require("./domain/models/Conversation");
+const Comment = require("./domain/models/Comment");
 
 module.exports = {
+    // Infra
     connectDB,
-    authenticate,
-    authorize,
-    asyncHandler,
     logger,
     redisClient,
     connectRedis,
     createCircuitBreaker,
-    requestTrace,
-    asyncLocalStorage,
-    rateLimiter,
     MessageBus,
     metrics,
+    asyncHandler,
+    requestTrace,
+    asyncLocalStorage,
+    initTracing,
+    secrets,
+    faultInjection,
+    errorHandler,
+
+    // Domain
+    authenticate,
+    authorize,
+    rateLimiter,
     security,
     validator,
     softDelete,
     audit,
-    initTracing,
-    MigrationRunner: require("./utils/migrations")
+    versioning,
+    MigrationRunner,
+
+    // Models
+    User,
+    Post,
+    Message,
+    Conversation,
+    Comment
 };
+
 
 
 

@@ -1,7 +1,7 @@
 const http = require("http");
 const { Server } = require("socket.io");
 const { createAdapter } = require("@socket.io/redis-adapter");
-const { redisClient, logger, connectRedis, initTracing } = require("@zuvo/shared");
+const { redisClient, logger, connectRedis, initTracing, metrics, faultInjection } = require("@zuvo/shared");
 
 initTracing("realtime-service");
 
@@ -88,7 +88,7 @@ const startServer = async () => {
         io.to(`user:${data.userId}`).emit("notification", data);
     });
 
-    const PORT = process.env.REALTIME_PORT || 8004;
+    const PORT = process.env.PORT || 8004;
     httpServer.listen(PORT, () => {
         logger.info(`Real-time service is running on port ${PORT}`);
     });

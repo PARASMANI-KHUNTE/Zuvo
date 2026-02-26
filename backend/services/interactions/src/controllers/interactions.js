@@ -1,6 +1,4 @@
-const { asyncHandler, logger, redisClient } = require("@zuvo/shared");
-
-const Comment = require("../models/Comment");
+const { Comment, asyncHandler, logger, redisClient } = require("@zuvo/shared");
 
 /**
  * @desc    Add comment to a post

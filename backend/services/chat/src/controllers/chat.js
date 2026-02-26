@@ -1,6 +1,4 @@
-const Conversation = require("../models/Conversation");
-const Message = require("../models/Message");
-const { asyncHandler } = require("@zuvo/shared");
+const { Conversation, Message, asyncHandler } = require("@zuvo/shared");
 
 /**
  * @desc    Get user's conversations

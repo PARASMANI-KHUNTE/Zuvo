@@ -1,6 +1,6 @@
 const dotenv = require("dotenv");
 const { trace, context, propagation } = require("@opentelemetry/api");
-const { logger, connectRedis, MessageBus, redisClient, connectDB, initTracing } = require("@zuvo/shared");
+const { logger, connectRedis, MessageBus, redisClient, connectDB, initTracing, metrics, faultInjection } = require("@zuvo/shared");
 
 dotenv.config();
 process.env.SERVICE_NAME = "worker-service";
@@ -60,10 +60,16 @@ const startWorker = async () => {
                                 span.setAttribute("task.type", task.type);
 
                                 try {
+                                    const start = process.hrtime();
                                     await handleTask(task);
+                                    const duration = process.hrtime(start);
+                                    const durationInSeconds = duration[0] + duration[1] / 1e9;
+
                                     // Acknowledge the message upon success
                                     await redisClient.xAck(STREAM_NAME, GROUP_NAME, id);
                                     span.setStatus({ code: 1 }); // Ok
+
+                                    logger.info(`Task [${id}] completed in ${durationInSeconds.toFixed(3)}s`);
                                 } catch (err) {
                                     logger.error(`Task [${id}] failed. Moving to DLQ.`, err);
                                     span.recordException(err);
@@ -112,7 +118,7 @@ const handleTask = async (task) => {
             try {
                 // 1. Scrub from Auth (hard delete or anonymize)
                 // 2. Soft-delete all Blogs
-                const Post = require("../blog/src/models/post");
+                const { Post, User, Message, Conversation } = require("@zuvo/shared");
                 await Post.updateMany({ author: task.userId }, { isDeleted: true, content: "[DELETED BY USER REQUEST]" });
 
                 // 3. Scrub from Chat
@@ -129,8 +135,7 @@ const handleTask = async (task) => {
 
             logger.info(`Persisting chat message for conversation ${task.conversationId}`);
             try {
-                const Message = require("../chat/src/models/Message");
-                const Conversation = require("../chat/src/models/Conversation");
+                const { Message, Conversation } = require("@zuvo/shared");
 
                 const newMessage = await Message.create({
                     conversationId: task.conversationId,

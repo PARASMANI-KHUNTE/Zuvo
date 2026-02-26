@@ -1,5 +1,5 @@
-const logger = require("../utils/logger");
-const { redisClient } = require("../utils/redis");
+const logger = require("../infra/logger");
+const { redisClient } = require("../infra/redis");
 
 
 /**

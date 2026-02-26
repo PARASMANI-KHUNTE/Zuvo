@@ -1,5 +1,4 @@
-const Post = require("../models/post");
-const { asyncHandler, MessageBus, audit } = require("@zuvo/shared");
+const { Post, asyncHandler, MessageBus, audit } = require("@zuvo/shared");
 
 // @route   POST /api/v1/blogs
 // @access  Private

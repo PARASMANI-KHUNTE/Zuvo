@@ -1,3 +1,9 @@
+const logger = require("./logger");
+
+/**
+ * Global Enterprise Error Handler
+ * Standardizes error responses across all microservices
+ */
 const errorHandler = (err, req, res, next) => {
     let statusCode = err.statusCode || 500;
     let message = err.message || "Internal Server Error";
@@ -25,7 +31,8 @@ const errorHandler = (err, req, res, next) => {
         message = "Token expired. Please login again.";
     }
 
-    console.error(`[Error] ${err.stack}`);
+    // Log error stack (using shared logger)
+    logger.error(`[Error Handler] ${err.message}`, { stack: err.stack, path: req.path, method: req.method });
 
     res.status(statusCode).json({
         success: false,

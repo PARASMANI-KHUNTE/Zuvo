@@ -7,16 +7,17 @@ const rateLimit = require("express-rate-limit");
 dotenv.config();
 process.env.SERVICE_NAME = "blog-service";
 
-const { connectDB, logger, requestTrace, initTracing } = require("@zuvo/shared");
+const { connectDB, logger, requestTrace, initTracing, metrics, faultInjection, errorHandler } = require("@zuvo/shared");
 
 initTracing("blog-service");
 
 
 const blogRoutes = require("./src/routes/blog");
-const errorHandler = require("../auth/src/middleware/errorHandler");
 
 const app = express();
 app.use(requestTrace);
+app.use(metrics.metricsMiddleware("blog-service"));
+app.use(faultInjection);
 
 
 // Security Middlewares

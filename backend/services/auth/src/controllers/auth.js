@@ -1,5 +1,4 @@
-const User = require("../models/user");
-const { asyncHandler } = require("@zuvo/shared");
+const { User, asyncHandler } = require("@zuvo/shared");
 
 
 
@@ -39,6 +38,9 @@ const sendTokenResponse = async (user, statusCode, res) => {
         });
 };
 
+const crypto = require("crypto");
+const emailService = require("../services/email.service");
+
 // @route   POST /api/v1/auth/register
 // @access  Public
 exports.register = asyncHandler(async (req, res, next) => {
@@ -50,15 +52,33 @@ exports.register = asyncHandler(async (req, res, next) => {
         return res.status(400).json({ success: false, message: "User already exists" });
     }
 
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
     // Create user
     const user = await User.create({
         name,
         email,
         username,
-        password
+        password,
+        verificationToken
     });
 
-    sendTokenResponse(user, 201, res);
+    // Send Verification Email
+    try {
+        await emailService.sendVerificationEmail(user.email, verificationToken);
+        res.status(201).json({
+            success: true,
+            message: "Registration successful. Please check your email to verify your account."
+        });
+    } catch (err) {
+        // If email fails, we might want to delete the user or allow them to retry verification later
+        // For now, we'll just log and still return success with a warning
+        res.status(201).json({
+            success: true,
+            message: "Registration successful, but verification email failed to send. Please contact support."
+        });
+    }
 });
 
 // @route   POST /api/v1/auth/login
@@ -81,6 +101,14 @@ exports.login = asyncHandler(async (req, res, next) => {
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
         return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
+
+    // Check if email is verified
+    if (!user.isVerified) {
+        return res.status(401).json({
+            success: true,
+            message: "Account not verified. Please check your email to verify your account."
+        });
     }
 
     sendTokenResponse(user, 200, res);
@@ -123,6 +151,94 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
     // Optional: Verify token with jwt.verify if you want to check expiry explicitly
 
     sendTokenResponse(user, 200, res);
+});
+
+// @route   GET /api/v1/auth/verify-email
+// @access  Public
+exports.verifyEmail = asyncHandler(async (req, res, next) => {
+    const { token } = req.query;
+
+    if (!token) {
+        return res.status(400).json({ success: false, message: "Invalid verification token" });
+    }
+
+    const user = await User.findOne({ verificationToken: token });
+
+    if (!user) {
+        return res.status(400).json({ success: false, message: "Invalid or expired token" });
+    }
+
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    // In a real app, redirect to a frontend "Success" page
+    res.status(200).json({ success: true, message: "Email verified successfully. You can now login." });
+});
+
+// @route   POST /api/v1/auth/forgot-password
+// @access  Public
+exports.forgotPassword = asyncHandler(async (req, res, next) => {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    user.resetPasswordOTP = otp;
+    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await user.save({ validateBeforeSave: false });
+
+    try {
+        await emailService.sendPasswordResetOTP(user.email, otp);
+        res.status(200).json({ success: true, message: "OTP sent to your email" });
+    } catch (err) {
+        user.resetPasswordOTP = undefined;
+        user.resetPasswordExpires = undefined;
+        await user.save({ validateBeforeSave: false });
+        return res.status(500).json({ success: false, message: "Failed to send email" });
+    }
+});
+
+// @route   POST /api/v1/auth/reset-password
+// @access  Public
+exports.resetPassword = asyncHandler(async (req, res, next) => {
+    const { email, otp, newPassword } = req.body;
+
+    const user = await User.findOne({
+        email,
+        resetPasswordOTP: otp,
+        resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+        return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+    }
+
+    // Update password
+    user.password = newPassword;
+    user.resetPasswordOTP = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.status(200).json({ success: true, message: "Password reset successful" });
+});
+
+/**
+ * @desc    Google OAuth Success Handler
+ * Extracted user from passport and issues Zuvo JWTs
+ */
+exports.googleAuthSuccess = asyncHandler(async (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ success: false, message: "OAuth Authentication Failed" });
+    }
+
+    // Issue Zuvo Tokens
+    sendTokenResponse(req.user, 200, res);
 });
 
 // @route   GET /api/v1/auth/me
