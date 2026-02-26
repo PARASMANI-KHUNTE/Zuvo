@@ -6,7 +6,7 @@ const cors = require("cors");
 dotenv.config();
 process.env.SERVICE_NAME = "media-service";
 
-const { connectDB, logger, requestTrace, connectRedis, initTracing, metrics, faultInjection, errorHandler } = require("@zuvo/shared");
+const { connectDB, logger, requestTrace, connectRedis, initTracing, metrics, faultInjection, errorHandler, HealthCheck } = require("@zuvo/shared");
 
 initTracing(process.env.SERVICE_NAME);
 
@@ -28,6 +28,16 @@ app.use(express.json());
 
 // Routes
 app.use("/api/v1/media", mediaRoutes);
+
+// Health Checks
+app.get("/health", async (req, res) => {
+    res.status(200).json(await HealthCheck.getHealth());
+});
+
+app.get("/ready", async (req, res) => {
+    const ready = await HealthCheck.getReady();
+    res.status(ready.status === "UP" ? 200 : 503).json(ready);
+});
 
 // Error Handling
 app.use(errorHandler);

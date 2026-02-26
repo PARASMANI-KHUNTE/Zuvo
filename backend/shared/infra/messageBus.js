@@ -18,10 +18,14 @@ class MessageBus {
             const carrier = {};
             propagation.inject(context.active(), carrier);
 
+            const store = require("./requestTrace").asyncLocalStorage.getStore();
+            const requestId = store?.requestId;
+
             const messageData = {
                 data: JSON.stringify(data),
                 timestamp: Date.now().toString(),
-                traceparent: carrier.traceparent // OTel standard header
+                traceparent: carrier.traceparent, // OTel standard header
+                requestId
             };
 
             const messageId = await redisClient.xAdd(stream, "*", messageData, {

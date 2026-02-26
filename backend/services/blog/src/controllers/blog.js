@@ -1,5 +1,5 @@
-const { asyncHandler, MessageBus, audit, internalServices, models } = require("@zuvo/shared");
-const Post = models.Post();
+const { asyncHandler, MessageBus, audit, internalServices } = require("@zuvo/shared");
+const Post = require("../models/Post");
 
 // @route   POST /api/v1/blogs
 // @access  Private
@@ -174,4 +174,13 @@ exports.deletePost = asyncHandler(async (req, res, next) => {
         data: {}
     });
 
+});
+// @route   GET /api/v1/blogs/internal/:id
+// @access  Internal
+exports.getInternalPost = asyncHandler(async (req, res, next) => {
+    const post = await Post.findById(req.params.id).select("author title");
+    if (!post) {
+        return res.status(404).json({ success: false, message: "Post not found" });
+    }
+    res.status(200).json({ success: true, data: post });
 });

@@ -1,6 +1,6 @@
 const express = require("express");
 const dotenv = require("dotenv");
-const { logger, requestTrace, connectRedis, redisClient, initTracing, metrics, faultInjection, errorHandler, authenticate } = require("@zuvo/shared");
+const { logger, requestTrace, connectRedis, redisClient, initTracing, metrics, faultInjection, errorHandler, authenticate, HealthCheck } = require("@zuvo/shared");
 
 dotenv.config();
 process.env.SERVICE_NAME = "feed-service";
@@ -33,6 +33,16 @@ app.get("/api/v1/feed", authenticate, async (req, res, next) => {
     } catch (err) {
         next(err);
     }
+});
+
+// Health Checks
+app.get("/health", async (req, res) => {
+    res.status(200).json(await HealthCheck.getHealth());
+});
+
+app.get("/ready", async (req, res) => {
+    const ready = await HealthCheck.getReady();
+    res.status(ready.status === "UP" ? 200 : 503).json(ready);
 });
 
 // Global Error Handler
