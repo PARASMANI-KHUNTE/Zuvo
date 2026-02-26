@@ -16,8 +16,9 @@ reviews:
 chat:
   enabled: true
 instructions:
-  - "Focus on microservices architectural patterns (decoupling, resilience, observability)."
-  - "Ensure all API interactions use the established Correlation ID pattern."
-  - "Validate that security middlewares are correctly applied to all Gateway routes."
-  - "Check for premium UI/UX standards in the Next.js frontend (glassmorphism, animations)."
-  - "Verify that database operations in microservices use local models and don't leak shared state."
+  - "Enforce strict microservice boundaries. No cross-service model imports."
+  - "Flag any blocking I/O inside request lifecycle."
+  - "Ensure all inter-service calls use retries or circuit breaker patterns."
+  - "Verify Correlation ID propagation from Gateway to downstream services."
+  - "Ensure worker jobs implement idempotency and DLQ handling."
+  - "Validate refresh token and OTP hashing security patterns."
