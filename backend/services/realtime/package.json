@@ -1,0 +1,16 @@
+{
+    "name": "realtime-service",
+    "version": "1.0.0",
+    "description": "WebSocket service for real-time updates",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "nodemon server.js"
+    },
+    "dependencies": {
+        "socket.io": "^4.8.1",
+        "@socket.io/redis-adapter": "^8.3.0",
+        "redis": "^4.7.0",
+        "dotenv": "^17.3.1"
+    }
+}

@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "5000:5000"
+    environment:
+      - AUTH_SERVICE_URL=http://auth:8000
+      - BLOG_SERVICE_URL=http://blog:8001
+      - INTERACTIONS_SERVICE_URL=http://interactions:8002
+      - MEDIA_SERVICE_URL=http://media:8003
+      - REALTIME_SERVICE_URL=http://realtime:8004
+      - FEED_SERVICE_URL=http://feed:8005
+      - SEARCH_SERVICE_URL=http://search:8006
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+
+  auth:
+    build: ./services/auth
+    environment:
+      - PORT=8000
+      - MONGO_URI=mongodb://mongodb:27017/Zuvo
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - mongodb
+      - redis
+
+  blog:
+    build: ./services/blog
+    environment:
+      - PORT=8001
+      - MONGO_URI=mongodb://mongodb:27017/Zuvo
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - mongodb
+      - redis
+
+  interactions:
+    build: ./services/interactions
+    environment:
+      - PORT=8002
+      - MONGO_URI=mongodb://mongodb:27017/Zuvo
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - mongodb
+      - redis
+
+  media:
+    build: ./services/media
+    environment:
+      - PORT=8003
+      - MONGO_URI=mongodb://mongodb:27017/Zuvo
+      - REDIS_URL=redis://redis:6379
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+    depends_on:
+      - mongodb
+      - redis
+
+  realtime:
+    build: ./services/realtime
+    environment:
+      - REALTIME_PORT=8004
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+
+  worker:
+    build: ./services/worker
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+
+  feed:
+    build: ./services/feed
+    environment:
+      - PORT=8005
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+
+  search:
+    build: ./services/search
+    environment:
+      - PORT=8006
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+
+volumes:
+  mongo-data:
