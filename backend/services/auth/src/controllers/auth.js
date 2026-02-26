@@ -60,6 +60,36 @@ const sendTokenResponse = async (user, statusCode, res, req) => {
         });
 };
 
+// @route   GET /api/v1/auth/internal/users/search
+// @access  Internal (Service-to-Service)
+exports.searchInternalUsers = asyncHandler(async (req, res, next) => {
+    const { q, limit = 10, skip = 0 } = req.query;
+
+    const query = q
+        ? {
+            $or: [
+                { name: { $regex: q, $options: "i" } },
+                { username: { $regex: q, $options: "i" } }
+            ]
+        }
+        : {};
+
+    const users = await User.find(query)
+        .limit(parseInt(limit))
+        .skip(parseInt(skip))
+        .select("name username avatar");
+
+    res.status(200).json({
+        success: true,
+        data: users.map(user => ({
+            id: user._id,
+            name: user.name,
+            username: user.username,
+            avatar: user.avatar || "default-avatar.jpg"
+        }))
+    });
+});
+
 
 const emailService = require("../services/email.service");
 
