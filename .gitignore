@@ -9,6 +9,9 @@ build/
 out/
 bin/
 obj/
+.turbo/
+.vercel/
+*.tsbuildinfo
 
 # Environment files
 .env
@@ -22,6 +25,7 @@ obj/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 *.log
 logs/
 *.log.*
