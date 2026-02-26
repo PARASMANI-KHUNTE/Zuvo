@@ -12,7 +12,8 @@ class InternalServiceClient {
     async _get(url, requestId) {
         try {
             const response = await axios.get(url, {
-                headers: { "X-Request-ID": requestId }
+                headers: { "X-Request-ID": requestId },
+                timeout: Number(process.env.INTERNAL_HTTP_TIMEOUT) || 5000
             });
             return response.data.data;
         } catch (err) {
