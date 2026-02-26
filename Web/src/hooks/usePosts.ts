@@ -23,25 +23,25 @@ export function usePosts() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        const fetchPosts = async () => {
-            try {
-                setLoading(true);
-                const response = await apiClient.get("/blogs");
-                if (response.data.success) {
-                    setPosts(response.data.data);
-                } else {
-                    setError("Failed to fetch posts");
-                }
-            } catch (err: any) {
-                setError(err.message || "An error occurred while fetching posts");
-            } finally {
-                setLoading(false);
+    const fetchPosts = async () => {
+        try {
+            setLoading(true);
+            const response = await apiClient.get("/blogs");
+            if (response.data.success) {
+                setPosts(response.data.data);
+            } else {
+                setError("Failed to fetch posts");
             }
-        };
+        } catch (err: any) {
+            setError(err.message || "An error occurred while fetching posts");
+        } finally {
+            setLoading(false);
+        }
+    };
 
+    useEffect(() => {
         fetchPosts();
     }, []);
 
-    return { posts, loading, error };
+    return { posts, loading, error, refresh: fetchPosts };
 }

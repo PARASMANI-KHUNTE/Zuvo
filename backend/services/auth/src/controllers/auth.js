@@ -41,7 +41,7 @@ const sendTokenResponse = async (user, statusCode, res, req) => {
         expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict"
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
     };
 
     res
@@ -91,7 +91,7 @@ exports.searchInternalUsers = asyncHandler(async (req, res, next) => {
 });
 
 
-const emailService = require("../services/email.service");
+
 
 // @route   POST /api/v1/auth/register
 // @access  Public
@@ -159,11 +159,12 @@ exports.login = asyncHandler(async (req, res, next) => {
         return res.status(401).json({ success: false, message: "Invalid credentials" });
     }
 
-    // FIX B3: Check if email is verified — was returning success:true with 401 (inconsistency)
-    if (!user.isVerified) {
+    // Skip verification check in development mode for easier testing
+    if (process.env.NODE_ENV !== "development" && !user.isVerified) {
         return res.status(403).json({
             success: false,
-            message: "Account not verified. Please check your email."
+            message: "Account not verified. Please check your email.",
+            unverified: true
         });
     }
 
@@ -190,6 +191,8 @@ exports.logout = asyncHandler(async (req, res, next) => {
     res.cookie("refreshToken", "none", {
         expires: new Date(Date.now() + 10 * 1000),
         httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
     });
 
     res.status(200).json({ success: true, message: "Logged out successfully" });
@@ -206,6 +209,8 @@ exports.logoutAllDevices = asyncHandler(async (req, res, next) => {
     res.cookie("refreshToken", "none", {
         expires: new Date(Date.now() + 10 * 1000),
         httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
     });
 
     res.status(200).json({ success: true, message: "Logged out from all devices" });
@@ -246,6 +251,8 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
         res.cookie("refreshToken", "none", {
             expires: new Date(Date.now() + 10 * 1000),
             httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
         });
         return res.status(401).json({ success: false, message: "Security breach detected. All sessions invalidated." });
     }
@@ -262,9 +269,17 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
     }
 
     // Rotate: Revoke old, issue new
-    tokenRecord.revoked = true;
-    tokenRecord.lastUsed = Date.now();
-    await user.save({ validateBeforeSave: false });
+    try {
+        tokenRecord.revoked = true;
+        tokenRecord.lastUsed = Date.now();
+        await user.save({ validateBeforeSave: false });
+    } catch (err) {
+        if (err.name === 'VersionError' || err.message.includes('No matching document')) {
+            // Concurrent request already rotated this token (e.g., React Strict Mode double-request)
+            return res.status(409).json({ success: false, message: "Concurrent token refresh detected" });
+        }
+        throw err;
+    }
 
     await sendTokenResponse(user, 200, res, req);
 });
@@ -320,7 +335,7 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
         res.status(200).json({ success: true, message: "OTP sent to your email" });
     } catch (err) {
         logger.error(`OTP Publish failed: ${err.message}`);
-        return res.status(500).json({ success: false, message: "Email system busy" });
+        return res.status(500).json({ success: false, message: "Email system busy - " + err.message });
     }
 });
 
@@ -401,5 +416,25 @@ exports.getInternalUser = asyncHandler(async (req, res, next) => {
             username: user.username,
             avatar: user.avatar || "default-avatar.jpg"
         }
+    });
+});
+
+// @route   GET /api/v1/auth/check-username/:username
+// @access  Public
+exports.checkUsername = asyncHandler(async (req, res, next) => {
+    const user = await User.findOne({ username: req.params.username.toLowerCase() });
+    res.status(200).json({
+        success: true,
+        available: !user
+    });
+});
+
+// @route   GET /api/v1/auth/check-email/:email
+// @access  Public
+exports.checkEmail = asyncHandler(async (req, res, next) => {
+    const user = await User.findOne({ email: req.params.email.toLowerCase() });
+    res.status(200).json({
+        success: true,
+        available: !user
     });
 });

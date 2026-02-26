@@ -23,7 +23,10 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 apiClient.interceptors.response.use(
     (response: AxiosResponse) => response,
     (error: any) => {
-        console.error("API Error:", error.response?.data || error.message);
+        // Suppress 401 logs — they are expected for unauthenticated session checks
+        if (error.response?.status !== 401) {
+            console.error("API Error:", error.response?.data || error.message);
+        }
         return Promise.reject(error);
     }
 );

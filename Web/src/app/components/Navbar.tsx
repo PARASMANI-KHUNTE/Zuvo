@@ -1,8 +1,19 @@
 "use client";
 import React from "react";
-import { Search, Bell, User, MessageSquare } from "lucide-react";
+import { Search, Bell, User, MessageSquare, Loader2 } from "lucide-react";
+import { useSearch } from "@/hooks/useSearch";
 
 export default function Navbar() {
+    const { query, setQuery, performSearch, loading } = useSearch();
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter") {
+            performSearch(query);
+            // In a real app, you might want to redirect to a search results page
+            // router.push(`/search?q=${query}`);
+        }
+    };
+
     return (
         <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-center">
             <div className="max-w-7xl w-full glass-panel px-6 py-3 flex items-center justify-between">
@@ -16,11 +27,14 @@ export default function Navbar() {
 
                 {/* Search Bar */}
                 <div className="hidden md:flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 focus-within:border-primary/50 transition-all w-96">
-                    <Search className="w-4 h-4 text-slate-400" />
+                    {loading ? <Loader2 className="w-4 h-4 text-primary animate-spin" /> : <Search className="w-4 h-4 text-slate-400" />}
                     <input
                         type="text"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        onKeyDown={handleKeyDown}
                         placeholder="Search Zuvo..."
-                        className="bg-transparent border-none outline-none text-sm w-full placeholder:text-slate-500"
+                        className="bg-transparent border-none outline-none text-sm w-full placeholder:text-slate-500 text-white"
                     />
                 </div>
 
