@@ -11,6 +11,8 @@ const { initTracing } = require("./infra/tracing");
 const secrets = require("./infra/secrets");
 const faultInjection = require("./infra/faultInjection");
 const errorHandler = require("./infra/errorHandler");
+const emailService = require("./infra/email");
+const internalServices = require("./infra/internalServices");
 
 // Domain Layer (Business Rules & Plugins)
 const { authenticate, authorize } = require("./domain/auth");
@@ -45,6 +47,8 @@ module.exports = {
     secrets,
     faultInjection,
     errorHandler,
+    emailService,
+    internalServices,
 
     // Domain
     authenticate,
@@ -57,12 +61,15 @@ module.exports = {
     versioning,
     MigrationRunner,
 
-    // Models
-    User,
-    Post,
-    Message,
-    Conversation,
-    Comment
+    // Models (Lazy Export - avoid top-level require if possible, 
+    // but for now we just export the factory/model mapping)
+    models: {
+        User: () => require("./domain/models/User"),
+        Post: () => require("./domain/models/Post"),
+        Message: () => require("./domain/models/Message"),
+        Conversation: () => require("./domain/models/Conversation"),
+        Comment: () => require("./domain/models/Comment")
+    }
 };
 
 

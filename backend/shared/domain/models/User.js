@@ -1,6 +1,11 @@
-const mongoose = require("mongoose");
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
+const tokenSchema = new mongoose.Schema({
+    tokenHash: { type: String, required: true, index: true },
+    ip: String,
+    userAgent: String,
+    revoked: { type: Boolean, default: false },
+    lastUsed: { type: Date, default: Date.now },
+    createdAt: { type: Date, default: Date.now }
+});
 
 const userSchema = new mongoose.Schema({
     name: {
@@ -41,15 +46,20 @@ const userSchema = new mongoose.Schema({
         default: false
     },
     verificationToken: String,
-    resetPasswordOTP: String,
+    resetPasswordHash: String,
+    otpAttempts: {
+        type: Number,
+        default: 0
+    },
+    otpLockedUntil: Date,
     resetPasswordExpires: Date,
     role: {
         type: String,
         enum: ["user", "admin"],
         default: "user"
     },
-    refreshToken: {
-        type: String,
+    refreshTokens: {
+        type: [tokenSchema],
         select: false
     }
 }, {
@@ -77,13 +87,21 @@ userSchema.methods.generateAccessToken = function () {
     );
 };
 
-// Generate Refresh Token
+// Generate Refresh Token & Meta
 userSchema.methods.generateRefreshToken = function () {
     return jwt.sign(
         { _id: this._id },
         process.env.REFRESH_TOKEN_SECRET,
         { expiresIn: "7d" }
     );
+};
+
+// Hash any token using HMAC-SHA256
+userSchema.methods.hashToken = function (token) {
+    return crypto
+        .createHmac("sha256", process.env.REFRESH_TOKEN_SECRET)
+        .update(token)
+        .digest("hex");
 };
 
 const User = mongoose.model("User", userSchema);

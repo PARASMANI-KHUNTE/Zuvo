@@ -1,4 +1,5 @@
-const { Post, asyncHandler, MessageBus, audit } = require("@zuvo/shared");
+const { asyncHandler, MessageBus, audit, internalServices, models } = require("@zuvo/shared");
+const Post = models.Post();
 
 // @route   POST /api/v1/blogs
 // @access  Private
@@ -42,7 +43,6 @@ exports.createPost = asyncHandler(async (req, res, next) => {
 
 // @route   GET /api/v1/blogs
 // @access  Public
-// FIX C1: Added pagination — page & limit query params
 exports.getPosts = asyncHandler(async (req, res, next) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -50,13 +50,17 @@ exports.getPosts = asyncHandler(async (req, res, next) => {
 
     const total = await Post.countDocuments({ status: "published", isDeleted: { $ne: true } });
 
-    const posts = await Post.find({ status: "published", isDeleted: { $ne: true } }).populate({
-        path: "author",
-        select: "name username"
-    })
+    const posts = await Post.find({ status: "published", isDeleted: { $ne: true } })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit);
+
+    // DECOUPLING FIX: Manually compose author data via internal service call
+    const postsWithAuthors = await Promise.all(posts.map(async (post) => {
+        const postObj = post.toObject();
+        postObj.author = await internalServices.getUserProfile(post.author);
+        return postObj;
+    }));
 
     res.status(200).json({
         success: true,
@@ -64,7 +68,7 @@ exports.getPosts = asyncHandler(async (req, res, next) => {
         total,
         page,
         pages: Math.ceil(total / limit),
-        data: posts
+        data: postsWithAuthors
     });
 });
 
@@ -75,26 +79,24 @@ exports.getPost = asyncHandler(async (req, res, next) => {
 
     // Check if it's a valid ObjectId or a slug
     if (req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
-        post = await Post.findById(req.params.id).populate({
-            path: "author",
-            select: "name username"
-        });
+        post = await Post.findById(req.params.id);
     }
 
     if (!post) {
-        post = await Post.findOne({ slug: req.params.id }).populate({
-            path: "author",
-            select: "name username"
-        });
+        post = await Post.findOne({ slug: req.params.id });
     }
 
     if (!post) {
         return res.status(404).json({ success: false, message: "Post not found" });
     }
 
+    // DECOUPLING FIX: Manually compose author data
+    const postWithAuthor = post.toObject();
+    postWithAuthor.author = await internalServices.getUserProfile(post.author);
+
     res.status(200).json({
         success: true,
-        data: post
+        data: postWithAuthor
     });
 });
 

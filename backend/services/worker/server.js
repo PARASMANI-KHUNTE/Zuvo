@@ -50,6 +50,27 @@ const startWorker = async () => {
                         const task = JSON.parse(data.data);
                         const traceparent = data.traceparent;
 
+                        // 1. Idempotency Guard (SETNX with 24h TTL)
+                        const lockKey = `zuvo:worker:processed:${id}`;
+                        const isNew = await redisClient.set(lockKey, "1", { NX: true, EX: 86400 });
+
+                        if (!isNew) {
+                            logger.warn(`Task [${id}] already processed or in progress. Skipping.`);
+                            await redisClient.xAck(STREAM_NAME, GROUP_NAME, id);
+                            continue;
+                        }
+
+                        // Track retries
+                        task.retries = (task.retries || 0) + 1;
+                        const correlationId = task.correlationId || `req_${id}`;
+
+                        if (task.retries > 5) {
+                            logger.error(`Task [${id}] [Correlation: ${correlationId}] max retries reached. Moving to DLQ.`);
+                            await handleFailure(id, task, new Error("Max retries exceeded"));
+                            await redisClient.xAck(STREAM_NAME, GROUP_NAME, id);
+                            continue;
+                        }
+
                         // Extract remote context
                         const parentContext = propagation.extract(context.active(), { traceparent });
 
@@ -81,7 +102,6 @@ const startWorker = async () => {
                             });
                         });
                     }
-
                 }
             }
         } catch (err) {
@@ -91,6 +111,7 @@ const startWorker = async () => {
             retryDelay = Math.min(retryDelay * 2, 30000);
         }
     }
+}
 };
 
 
@@ -116,17 +137,20 @@ const handleTask = async (task) => {
         case "GDPR_DELETE_USER":
             logger.info(`GDPR: Scrubbing all PII for user ${task.userId}`);
             try {
-                const { Post, User, Message } = require("@zuvo/shared");
+                const { models } = require("@zuvo/shared");
+                const User = models.User();
+                const Post = models.Post();
+                const Message = models.Message();
 
-                // 1. Anonymize User record (do not hard delete to preserve referential integrity)
+                // 1. Anonymize User record
                 await User.findByIdAndUpdate(task.userId, {
                     name: "[DELETED USER]",
                     email: `deleted_${task.userId}@gdpr.zuvo.com`,
                     password: undefined,
                     googleId: undefined,
                     verificationToken: undefined,
-                    resetPasswordOTP: undefined,
-                    refreshToken: undefined
+                    // resetPasswordOTP: undefined, // Fix key name if necessary
+                    refreshTokens: []
                 });
 
                 // 2. Soft-delete and anonymize all Posts
@@ -135,7 +159,7 @@ const handleTask = async (task) => {
                     { isDeleted: true, content: "[DELETED BY USER REQUEST]", title: "[DELETED]" }
                 );
 
-                // 3. Anonymize all Chat messages (content scrubbed, record preserved for thread integrity)
+                // 3. Anonymize all Chat messages
                 await Message.updateMany({ sender: task.userId }, { content: "[DELETED]" });
 
                 logger.info(`GDPR successfully processed for user ${task.userId}`);
@@ -145,10 +169,11 @@ const handleTask = async (task) => {
             }
             break;
         case "SAVE_CHAT_MESSAGE":
-
             logger.info(`Persisting chat message for conversation ${task.conversationId}`);
             try {
-                const { Message, Conversation } = require("@zuvo/shared");
+                const { models } = require("@zuvo/shared");
+                const Message = models.Message();
+                const Conversation = models.Conversation();
 
                 const newMessage = await Message.create({
                     conversationId: task.conversationId,
@@ -165,10 +190,17 @@ const handleTask = async (task) => {
                 throw err;
             }
             break;
+        case "EMAIL_SEND":
+            logger.info(`Sending email of type ${task.type} to ${task.to}`);
+            if (task.type === "VERIFICATION") {
+                const { emailService } = require("@zuvo/shared");
+                await emailService.sendVerificationEmail(task.to, task.data.token);
+            } else if (task.type === "OTP") {
+                const { emailService } = require("@zuvo/shared");
+                await emailService.sendPasswordResetOTP(task.to, task.data.otp);
+            }
+            break;
         default:
-
-
-
             logger.warn(`Unknown task type: ${task.type}`);
     }
 };

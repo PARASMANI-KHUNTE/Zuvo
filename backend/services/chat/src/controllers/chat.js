@@ -1,4 +1,6 @@
-const { Conversation, Message, asyncHandler } = require("@zuvo/shared");
+const { asyncHandler, models, internalServices } = require("@zuvo/shared");
+const Conversation = models.Conversation();
+const Message = models.Message();
 
 /**
  * @desc    Get user's conversations
@@ -12,13 +14,20 @@ exports.getConversations = asyncHandler(async (req, res) => {
     const conversations = await Conversation.find({
         participants: { $in: [req.user.id] }
     })
-        .populate("participants", "name username avatar")
-        .populate("lastMessage")
         .sort({ updatedAt: -1 })
         .skip(skip)
         .limit(limit);
 
-    res.status(200).json({ success: true, page, data: conversations });
+    // DECOUPLING FIX: Manually fetch participant profiles
+    const conversationsWithParticipants = await Promise.all(conversations.map(async (conv) => {
+        const convObj = conv.toObject();
+        convObj.participants = await Promise.all(
+            conv.participants.map(pId => internalServices.getUserProfile(pId))
+        );
+        return convObj;
+    }));
+
+    res.status(200).json({ success: true, page: page, data: conversationsWithParticipants });
 });
 
 /**
@@ -36,17 +45,23 @@ exports.getMessages = asyncHandler(async (req, res) => {
     const messages = await Message.find({
         conversationId: req.params.conversationId
     })
-        .populate("sender", "name username avatar")
         .sort({ createdAt: 1 })
         .skip(skip)
         .limit(limit);
+
+    // DECOUPLING FIX: Manually fetch sender profiles
+    const messagesWithSenders = await Promise.all(messages.map(async (msg) => {
+        const msgObj = msg.toObject();
+        msgObj.sender = await internalServices.getUserProfile(msg.sender);
+        return msgObj;
+    }));
 
     res.status(200).json({
         success: true,
         total,
         page,
         pages: Math.ceil(total / limit),
-        data: messages
+        data: messagesWithSenders
     });
 });
 

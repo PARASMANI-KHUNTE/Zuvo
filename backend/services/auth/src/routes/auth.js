@@ -9,7 +9,8 @@ const {
     verifyEmail,
     forgotPassword,
     resetPassword,
-    googleAuthSuccess
+    googleAuthSuccess,
+    getInternalUser
 } = require("../controllers/auth");
 const passport = require("passport");
 const { registerSchema, loginSchema } = require("../validations/auth");
@@ -133,5 +134,8 @@ router.post("/refresh-token", refreshToken);
  *         description: Current user data
  */
 router.get("/me", authenticate, getMe);
+
+// Internal route for service-to-service communication
+router.get("/internal/user/:id", getInternalUser);
 
 module.exports = router;

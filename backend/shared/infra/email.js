@@ -1,5 +1,5 @@
 const nodemailer = require("nodemailer");
-const logger = require("@zuvo/shared").logger;
+const logger = require("./logger");
 
 /**
  * Enterprise Email Service

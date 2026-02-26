@@ -1,6 +1,6 @@
 const express = require("express");
 const dotenv = require("dotenv");
-const { logger, requestTrace, connectRedis, redisClient, connectDB, Post, User, initTracing, metrics, faultInjection, errorHandler, authenticate } = require("@zuvo/shared");
+const { logger, requestTrace, connectRedis, redisClient, connectDB, initTracing, metrics, faultInjection, errorHandler, authenticate, models, internalServices } = require("@zuvo/shared");
 
 dotenv.config();
 process.env.SERVICE_NAME = "search-service";
@@ -38,6 +38,7 @@ app.get("/api/v1/search", async (req, res, next) => {
 
         // **FIX M2**: Real MongoDB text/regex search — no more mock data
         if (type === "posts" || type === "all") {
+            const Post = models.Post();
             const posts = await Post.find({
                 isDeleted: { $ne: true },
                 status: "published",
@@ -48,15 +49,22 @@ app.get("/api/v1/search", async (req, res, next) => {
                 ]
             })
                 .select("title slug tags author image createdAt")
-                .populate("author", "name username")
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(parseInt(limit));
 
-            results.posts = posts;
+            // DECOUPLING FIX: Manually fetch author profiles
+            const postsWithAuthors = await Promise.all(posts.map(async (post) => {
+                const postObj = post.toObject();
+                postObj.author = await internalServices.getUserProfile(post.author);
+                return postObj;
+            }));
+
+            results.posts = postsWithAuthors;
         }
 
         if (type === "users" || type === "all") {
+            const User = models.User();
             const users = await User.find({
                 $or: [
                     { name: searchRegex },
