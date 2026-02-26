@@ -75,12 +75,21 @@ const proxyConfig = (path, target) => ({
     target,
     changeOrigin: true,
     pathFilter: path,
+    proxyTimeout: 10000, // 10s timeout for proxy request
+    timeout: 10000,      // 10s connection timeout
     on: {
         proxyReq: (proxyReq, req, res) => {
             proxyReq.setHeader("X-Request-ID", req.requestId || "");
         },
         error: (err, req, res) => {
             logger.error(`Proxy Error [${path}]: ${err.message}`);
+            if (!res.headersSent) {
+                res.status(502).json({
+                    success: false,
+                    message: "Service Unavailable",
+                    error: err.message
+                });
+            }
         }
     }
 });

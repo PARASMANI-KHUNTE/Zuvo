@@ -64,3 +64,9 @@ backend/services/**/.env
 backend/gateway/.env
 backend/shared/.env
 /tmp/
+
+# Scratch & Testing Scripts
+test-login.js
+test-output.json
+verify_users.js
+seed.js

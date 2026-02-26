@@ -7,7 +7,7 @@ const rateLimit = require("express-rate-limit");
 dotenv.config();
 process.env.SERVICE_NAME = "auth-service";
 
-const { connectDB, logger, requestTrace, initTracing, metrics, faultInjection, errorHandler, HealthCheck } = require("@zuvo/shared");
+const { connectDB, connectRedis, logger, requestTrace, initTracing, metrics, faultInjection, errorHandler, HealthCheck } = require("@zuvo/shared");
 const passport = require("passport");
 require("./src/config/passport");
 
@@ -39,8 +39,9 @@ const limiter = rateLimit({
 });
 app.use("/api", limiter);
 
-// Database Connection
+// Database + Redis Connection
 connectDB();
+connectRedis().catch(err => logger.error("Redis connection failed:", err.message));
 
 // Routes
 app.use("/api/v1/auth", authRoutes);
