@@ -4,7 +4,7 @@ const { trace, context, propagation } = require("@opentelemetry/api");
 const { logger, connectRedis, MessageBus, redisClient, connectDB, initTracing, metrics, faultInjection, HealthCheck } = require("@zuvo/shared");
 
 dotenv.config();
-process.env.SERVICE_NAME = "worker-service";
+process.env.SERVICE_NAME = process.env.SERVICE_NAME || "worker-service";
 
 // Initialize Tracing FIRST
 initTracing(process.env.SERVICE_NAME);
