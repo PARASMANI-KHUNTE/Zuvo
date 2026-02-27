@@ -10,27 +10,27 @@ const asyncLocalStorage = new AsyncLocalStorage();
 const requestTrace = (req, res, next) => {
     const requestId = req.get("X-Request-ID") || uuidv4();
 
-    // Set for downstream services/debugging
     req.requestId = requestId;
     res.setHeader("X-Request-ID", requestId);
 
-    // Run the rest of the request in a storage context
-    asyncLocalStorage.run({ requestId }, () => {
-        const start = Date.now();
+    const start = Date.now();
+    logger.info(`${req.method} ${req.url} - Started`, { requestId });
 
-        logger.info(`${req.method} ${req.url} - Started`, { requestId });
-
-        res.on("finish", () => {
-            const duration = Date.now() - start;
-            logger.info(`${req.method} ${req.url} - Finished - ${res.statusCode} - ${duration}ms`, {
-                requestId,
-                statusCode: res.statusCode,
-                duration
-            });
+    res.on("finish", () => {
+        const duration = Date.now() - start;
+        logger.info(`${req.method} ${req.url} - Finished - ${res.statusCode} - ${duration}ms`, {
+            requestId,
+            statusCode: res.statusCode,
+            duration
         });
-
-        next();
     });
+
+    // Use enterWith() to set the async context for the current execution context.
+    // This is Express 5 compatible - unlike run() which wraps a callback,
+    // enterWith() sets the store for the current async context and all its descendants.
+    asyncLocalStorage.enterWith({ requestId });
+
+    next();
 };
 
 module.exports = { requestTrace, asyncLocalStorage };

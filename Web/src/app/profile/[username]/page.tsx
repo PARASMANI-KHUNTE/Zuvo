@@ -67,6 +67,8 @@ export default function ProfilePage() {
         }
     };
 
+    const fallbackAvatar = (seed: string) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
+
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -97,8 +99,8 @@ export default function ProfilePage() {
             <div className="px-6 -mt-16 relative z-10">
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                     <div className="space-y-4">
-                        <div className="w-32 h-32 rounded-3xl bg-gradient-to-br from-primary to-secondary p-1 shadow-2xl overflow-hidden">
-                            <img src={user.avatar} alt={user.name} className="w-full h-full object-cover rounded-[22px] border-4 border-background" />
+                        <div className="w-32 h-32 md:-mt-16 rounded-3xl bg-gradient-to-br from-primary to-secondary p-1 shadow-2xl relative z-20 overflow-hidden">
+                            <img src={user.avatar || fallbackAvatar(user.username)} alt={user.name} className="w-full h-full object-cover rounded-[22px] border-4 border-[#020617]" />
                         </div>
                         <div className="space-y-1">
                             <h1 className="text-3xl font-black text-white tracking-tight">{user.name}</h1>
@@ -196,13 +198,22 @@ export default function ProfilePage() {
                             )}
                             {activeTab === "media" && (
                                 <div className="grid grid-cols-2 gap-4">
-                                    {posts.filter(p => p.image && p.image !== "no-photo.jpg").map(post => (
-                                        <div key={post.id || post._id} className="aspect-square rounded-2xl overflow-hidden border border-white/5 cursor-pointer hover:border-white/20 transition-all">
-                                            <img src={post.image} alt="Media" className="w-full h-full object-cover" />
-                                        </div>
-                                    ))}
-                                    {posts.filter(p => p.image && p.image !== "no-photo.jpg").length === 0 && (
-                                        <div className="col-span-2 py-10 text-center text-slate-500 text-sm">No media found</div>
+                                    {posts.filter(p => p.media && p.media.length > 0).map(post => {
+                                        const mediaItem = post.media[0];
+                                        return (
+                                            <div key={post.id || post._id} className="aspect-square rounded-2xl overflow-hidden border border-white/5 cursor-pointer hover:border-white/20 transition-all bg-slate-900 flex items-center justify-center">
+                                                {mediaItem.type === "video" ? (
+                                                    <video src={mediaItem.url} className="w-full h-full object-cover opacity-80" muted />
+                                                ) : mediaItem.type === "image" ? (
+                                                    <img src={mediaItem.url} alt="Media" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <span className="text-slate-500 font-bold uppercase">{mediaItem.type}</span>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                    {posts.filter(p => p.media && p.media.length > 0).length === 0 && (
+                                        <div className="col-span-2 py-10 text-center text-slate-500 text-sm glass-panel rounded-2xl">No media found</div>
                                     )}
                                 </div>
                             )}

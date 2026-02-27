@@ -21,7 +21,7 @@ const {
 } = require("../controllers/auth");
 const passport = require("passport");
 const { registerSchema, loginSchema } = require("../validations/auth");
-const { authenticate, validator } = require("@zuvo/shared");
+const { authenticate, validator, rateLimiter } = require("@zuvo/shared");
 
 /**
  * @openapi
@@ -140,10 +140,10 @@ router.post("/refresh-token", refreshToken);
  *       200:
  *         description: Current user data
  */
-router.get("/me", authenticate, getMe);
-router.put("/profile", authenticate, updateProfile);
-router.put("/change-password", authenticate, changePassword);
-router.get("/profile/:username", getPublicProfile);
+router.get("/me", authenticate, rateLimiter(3600, 500), getMe);
+router.put("/profile", authenticate, rateLimiter(3600, 500), updateProfile);
+router.put("/change-password", authenticate, rateLimiter(3600, 500), changePassword);
+router.get("/profile/:username", rateLimiter(3600, 500), getPublicProfile);
 
 router.get("/check-username/:username", checkUsername);
 router.get("/check-email/:email", checkEmail);

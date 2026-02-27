@@ -61,6 +61,10 @@ We have established a comprehensive set of documents in the `documentation/` fol
 
 ## 🛠️ Current Status & Next Steps
 - **Completed**:
+    - **Unified Media Support**: Frontend and backend now handle `media` arrays, supporting Video, Audio, and Documents with native previews in `PostCard` and `PostDetailPage`.
+    - **Premium Tagging System**: Integrated suggested tags and a chip-based UI into content creation workflows. Tags are interactive and linked to global search.
+    - **Resilience & Error Handling**: Implemented Gateway redirects for service-down scenarios (502/503) and enforced strict rate limits/quotas (Search, Email API).
+    - **Stability Hardening**: Resolved dependency issues that caused service crashes and ensured all rate limiters are correctly integrated.
     - **Persistent Notification Storage**: Backend MongoDB persistence and frontend integration are fully operational.
     - **Chat Service Integration**: Direct messaging with real-time updates and message history persistence is live.
     - **Settings & Profile Management**: Comprehensive settings page with avatar/banner uploads and identity management.

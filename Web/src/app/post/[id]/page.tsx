@@ -168,19 +168,58 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                         </button>
                     </div>
 
-                    {/* Body */}
+                    {/* Body & Unified Media */}
                     <div className="space-y-4">
                         <h1 className="text-2xl font-black text-white tracking-tight">{post.title}</h1>
                         <p className="text-slate-200 text-lg leading-relaxed whitespace-pre-wrap">{post.content}</p>
-                        {post.image && post.image !== "no-photo.jpg" && (
+
+                        {(post.media && post.media.length > 0) ? (
+                            <div className="space-y-4">
+                                {post.media.map((item: any, idx: number) => (
+                                    <div key={idx} className="rounded-2xl overflow-hidden border border-white/5 shadow-2xl bg-slate-900/50">
+                                        {item.type === "image" ? (
+                                            <img src={item.url} alt="Post visual" className="w-full h-auto object-cover max-h-[800px]" />
+                                        ) : item.type === "video" ? (
+                                            <video src={item.url} controls className="w-full h-auto max-h-[800px]" />
+                                        ) : item.type === "audio" ? (
+                                            <div className="p-6">
+                                                <audio src={item.url} controls className="w-full" />
+                                            </div>
+                                        ) : (
+                                            <a
+                                                href={item.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-4 p-6 hover:bg-white/5 transition-all group/file"
+                                            >
+                                                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover/file:bg-primary group-hover/file:text-white transition-all">
+                                                    <Share2 className="w-6 h-6" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-lg font-bold text-white truncate">Attached Document</p>
+                                                    <p className="text-sm text-slate-500 font-medium">Click to view/download attachment</p>
+                                                </div>
+                                            </a>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : post.image && post.image !== "no-photo.jpg" && (
                             <div className="rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
                                 <img src={post.image} alt="Post visual" className="w-full h-auto object-cover max-h-[600px]" />
                             </div>
                         )}
+
                         {post.tags?.length > 0 && (
                             <div className="flex flex-wrap gap-2 pt-2">
                                 {post.tags.map((tag: string) => (
-                                    <span key={tag} className="text-primary text-sm font-bold hover:underline cursor-pointer">#{tag}</span>
+                                    <span
+                                        key={tag}
+                                        onClick={() => router.push(`/search?q=${tag}&type=posts`)}
+                                        className="text-secondary bg-secondary/10 px-3 py-1 rounded-full text-xs font-bold hover:bg-secondary/20 transition-all cursor-pointer"
+                                    >
+                                        #{tag}
+                                    </span>
                                 ))}
                             </div>
                         )}
@@ -241,28 +280,12 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                 <div className="space-y-4">
                     <h3 className="text-xl font-bold text-white px-2">Discussion ({comments.length})</h3>
                     {comments.length > 0 ? comments.map((comm) => (
-                        <motion.div
+                        <CommentItem
                             key={comm._id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="glass-panel p-5 rounded-2xl border border-white/5 space-y-3"
-                        >
-                            <div className="flex items-center justify-between">
-                                <Link href={`/profile/${comm.user?.username}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                                    <img
-                                        src={comm.user?.avatar || fallbackAvatar(comm.user?.username || "commenter")}
-                                        alt={comm.user?.name}
-                                        className="w-8 h-8 rounded-full object-cover"
-                                    />
-                                    <div>
-                                        <span className="font-bold text-sm text-slate-200">{comm.user?.name}</span>
-                                        <span className="text-xs text-slate-500 ml-2">@{comm.user?.username} · {formatDistanceToNow(new Date(comm.createdAt))} ago</span>
-                                    </div>
-                                </Link>
-                                <button type="button" className="text-slate-600 hover:text-white"><MoreHorizontal className="w-4 h-4" /></button>
-                            </div>
-                            <p className="text-slate-400 text-sm leading-relaxed pl-11">{comm.content}</p>
-                        </motion.div>
+                            comment={comm}
+                            postId={params.id}
+                            currentUser={currentUser}
+                        />
                     )) : (
                         <div className="py-12 text-center text-slate-500 glass-panel rounded-2xl border border-white/5 italic">
                             No comments yet. Be the first to start the conversation!
@@ -277,5 +300,151 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                 <SuggestedUsers />
             </div>
         </div>
+    );
+}
+
+// Extracted Nested Comment Component
+function CommentItem({ comment, postId, currentUser, depth = 0 }: { comment: any; postId: string; currentUser: any; depth?: number }) {
+    const { fetchReplies, addComment } = usePosts();
+    const [replies, setReplies] = useState<any[]>([]);
+    const [loadingReplies, setLoadingReplies] = useState(false);
+    const [showReplies, setShowReplies] = useState(false);
+    const [isReplying, setIsReplying] = useState(false);
+    const [replyText, setReplyText] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+
+    // Likes state
+    const [likes, setLikes] = useState(comment.likesCount || 0);
+    const [isLiked, setIsLiked] = useState(false);
+    const [liking, setLiking] = useState(false);
+
+    const fallbackAvatar = (seed: string) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
+
+    const handleLoadReplies = async () => {
+        if (!showReplies && replies.length === 0) {
+            setLoadingReplies(true);
+            const data = await fetchReplies(comment._id);
+            setReplies(data);
+            setLoadingReplies(false);
+        }
+        setShowReplies(!showReplies);
+    };
+
+    const handleReplySubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!replyText.trim() || submitting) return;
+
+        setSubmitting(true);
+        const newReply = await addComment(postId, replyText, comment._id);
+        if (newReply) {
+            const dicebearAvatar = fallbackAvatar(currentUser?.username || "me");
+            const enriched = {
+                ...newReply,
+                user: {
+                    name: currentUser?.name,
+                    username: currentUser?.username,
+                    avatar: currentUser?.avatar || dicebearAvatar
+                },
+                createdAt: new Date().toISOString()
+            };
+            setReplies([...replies, enriched]);
+            setReplyText("");
+            setIsReplying(false);
+            if (!showReplies) setShowReplies(true);
+        }
+        setSubmitting(false);
+    };
+
+    const handleLike = async () => {
+        if (liking) return;
+        setLiking(true);
+
+        const wasLiked = isLiked;
+        setIsLiked(!wasLiked);
+        setLikes((c: number) => wasLiked ? c - 1 : c + 1);
+
+        try {
+            await apiClient.post("/interactions/comments/like", { commentId: comment._id, action: wasLiked ? "dislike" : "like" });
+        } catch (err) {
+            setIsLiked(wasLiked);
+            setLikes((c: number) => wasLiked ? c + 1 : c - 1);
+        } finally {
+            setLiking(false);
+        }
+    };
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`glass-panel p-5 rounded-2xl border border-white/5 space-y-3 ${depth > 0 ? 'ml-8 md:ml-12 relative before:absolute before:-left-6 before:top-0 before:bottom-0 before:w-px before:bg-white/10' : ''}`}
+        >
+            <div className="flex items-center justify-between">
+                <Link href={`/profile/${comment.user?.username}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                    <img
+                        src={comment.user?.avatar || fallbackAvatar(comment.user?.username || "commenter")}
+                        alt={comment.user?.name}
+                        className="w-8 h-8 rounded-full object-cover"
+                    />
+                    <div>
+                        <span className="font-bold text-sm text-slate-200">{comment.user?.name}</span>
+                        <span className="text-xs text-slate-500 ml-2">@{comment.user?.username} · {formatDistanceToNow(new Date(comment.createdAt))} ago</span>
+                    </div>
+                </Link>
+                <button type="button" className="text-slate-600 hover:text-white"><MoreHorizontal className="w-4 h-4" /></button>
+            </div>
+
+            <p className="text-slate-400 text-sm leading-relaxed pl-11">{comment.content}</p>
+
+            <div className="flex items-center gap-4 pl-11 pt-1">
+                <button onClick={handleLike} disabled={liking} className={`flex items-center gap-1.5 text-xs font-semibold ${isLiked ? 'text-rose-500' : 'text-slate-500 hover:text-rose-400'} transition-colors`}>
+                    <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-rose-500' : ''}`} /> {likes > 0 && likes}
+                </button>
+                <button onClick={() => setIsReplying(!isReplying)} className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-white transition-colors">
+                    <MessageCircle className="w-3.5 h-3.5" /> Reply
+                </button>
+            </div>
+
+            {isReplying && (
+                <form onSubmit={handleReplySubmit} className="ml-11 mt-3 flex items-center gap-3">
+                    <input
+                        type="text"
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder={`Replying to @${comment.user?.username}...`}
+                        disabled={submitting}
+                        autoFocus
+                        className="flex-1 bg-white/5 border border-white/10 rounded-lg py-2 px-3 text-white text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    />
+                    <button type="submit" disabled={!replyText.trim() || submitting} className="text-primary hover:text-white transition-colors p-1 disabled:opacity-50">
+                        {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    </button>
+                </form>
+            )}
+
+            {/* Depth Check prevents infinite recursion just in case, limiting nesting to 3 levels deep here for UX */}
+            {depth < 3 && (
+                <div className="pl-11 pt-2">
+                    <button onClick={handleLoadReplies} className="text-xs text-primary/80 font-semibold hover:text-primary transition-colors flex items-center gap-2">
+                        {loadingReplies && <Loader2 className="w-3 h-3 animate-spin" />}
+                        {showReplies ? "Hide replies" : `View replies`}
+                    </button>
+
+                    {showReplies && replies.length > 0 && (
+                        <div className="mt-4 space-y-4">
+                            {replies.map(reply => (
+                                <CommentItem
+                                    key={reply._id}
+                                    comment={reply}
+                                    postId={postId}
+                                    currentUser={currentUser}
+                                    depth={depth + 1}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+        </motion.div>
     );
 }

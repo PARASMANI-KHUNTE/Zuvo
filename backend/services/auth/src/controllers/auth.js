@@ -89,6 +89,13 @@ exports.searchInternalUsers = asyncHandler(async (req, res, next) => {
 // @route   POST /api/v1/auth/register
 exports.register = asyncHandler(async (req, res, next) => {
     const { name, email, username, password } = req.body;
+
+    // SEAT LIMIT: Max 3 users
+    const userCount = await User.countDocuments();
+    if (userCount >= 3) {
+        return res.status(403).json({ success: false, message: "User seat limit reached (Max 3). Contact administrator." });
+    }
+
     const userExists = await User.findOne({ $or: [{ email }, { username }] });
     if (userExists) {
         return res.status(400).json({ success: false, message: "User already exists" });
@@ -317,7 +324,19 @@ exports.getMe = asyncHandler(async (req, res, next) => {
 
 // @route   PUT /api/v1/auth/profile
 exports.updateProfile = asyncHandler(async (req, res, next) => {
-    const user = await User.findByIdAndUpdate(req.user.id || req.user._id, req.body, { new: true, runValidators: true });
+    logger.info(`updateProfile: Attempting update for user: ${req.user.id || req.user._id}`);
+    logger.info(`updateProfile: Body: ${JSON.stringify(req.body)}`);
+
+    const user = await User.findByIdAndUpdate(req.user.id || req.user._id, req.body, {
+        new: true,
+        runValidators: true
+    });
+
+    if (!user) {
+        logger.warn(`updateProfile: User not found: ${req.user.id || req.user._id}`);
+        return res.status(404).json({ success: false, message: "User not found" });
+    }
+
     res.status(200).json({ success: true, data: user });
 });
 

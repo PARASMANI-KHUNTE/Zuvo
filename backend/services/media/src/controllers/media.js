@@ -11,7 +11,7 @@ exports.uploadFile = asyncHandler(async (req, res, next) => {
         return res.status(400).json({ success: false, message: "Please upload a file" });
     }
 
-    logger.info(`File uploaded successfully: ${req.file.path}`, { requestId: req.requestId });
+    logger.info(`File uploaded successfully: ${req.file.path} (Request ID: ${req.requestId})`);
 
     res.status(200).json({
         success: true,
