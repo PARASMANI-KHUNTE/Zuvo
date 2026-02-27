@@ -3,10 +3,13 @@ const logger = require("./logger");
 
 const connectDB = async () => {
     try {
-        const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
-        const mongoURI = uri
-            ? `${uri}/${process.env.DB_NAME || "zuvo"}`
-            : "mongodb://localhost:27017/zuvo";
+        const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || "mongodb://localhost:27017").trim();
+        const dbName = (process.env.DB_NAME || "zuvo").trim();
+
+        let mongoURI = uri;
+        if (!uri.includes(dbName) && !uri.split('/').pop().includes('?')) {
+            mongoURI = uri.endsWith('/') ? `${uri}${dbName}` : `${uri}/${dbName}`;
+        }
 
         await mongoose.connect(mongoURI);
 

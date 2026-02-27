@@ -1,6 +1,6 @@
 const express = require("express");
 const dotenv = require("dotenv");
-const { models, logger, requestTrace, connectRedis, redisClient, connectDB, initTracing, metrics, faultInjection, errorHandler, authenticate, internalServices, HealthCheck } = require("@zuvo/shared");
+const { models, logger, requestTrace, connectRedis, redisClient, connectDB, initTracing, metrics, faultInjection, errorHandler, authenticate, internalServices, HealthCheck, rateLimiter } = require("@zuvo/shared");
 const Post = models.Post();
 
 dotenv.config();
@@ -22,7 +22,7 @@ app.use(express.json());
  * @route   GET /api/v1/search?q=query&type=posts|users|all&page=1&limit=10
  * @access  Public
  */
-app.get("/api/v1/search", async (req, res, next) => {
+app.get("/api/v1/search", rateLimiter(3600, 500), async (req, res, next) => {
     try {
         const { q, type = "all", page = 1, limit = 10 } = req.query;
 
@@ -35,9 +35,9 @@ app.get("/api/v1/search", async (req, res, next) => {
 
         logger.info(`Search query: "${q}" | type: ${type}`);
 
-        let results = {};
+        let results = { posts: [], users: [] };
+        let postAuthorIds = new Set();
 
-        // **FIX M2**: Real MongoDB text/regex search — no more mock data
         if (type === "posts" || type === "all") {
             const posts = await Post.find({
                 isDeleted: { $ne: true },
@@ -48,15 +48,17 @@ app.get("/api/v1/search", async (req, res, next) => {
                     { tags: { $in: [searchRegex] } }
                 ]
             })
-                .select("title slug tags author image createdAt")
+                .select("title slug tags author media image createdAt")
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(parseInt(limit));
 
-            // DECOUPLING FIX: Manually fetch author profiles
             const postsWithAuthors = await Promise.all(posts.map(async (post) => {
                 const postObj = post.toObject();
                 postObj.author = await internalServices.getUserProfile(post.author);
+                if (postObj.author && postObj.author._id) {
+                    postAuthorIds.add(postObj.author._id.toString());
+                }
                 return postObj;
             }));
 
@@ -64,8 +66,25 @@ app.get("/api/v1/search", async (req, res, next) => {
         }
 
         if (type === "users" || type === "all") {
-            const users = await internalServices.searchUsers(q, limit, skip);
-            results.users = users;
+            const users = await internalServices.searchUsers(q, limit, skip) || [];
+
+            // Deduplicate matching users with post authors
+            const userIds = new Set(users.map(u => u._id.toString()));
+
+            // Add authors of matched posts to the people list if not already there
+            const additionalAuthors = [];
+            for (const authorId of postAuthorIds) {
+                if (!userIds.has(authorId)) {
+                    try {
+                        const authorProfile = await internalServices.getUserProfile(authorId);
+                        if (authorProfile) additionalAuthors.push(authorProfile);
+                    } catch (err) {
+                        logger.error(`Failed to fetch author profile for search injection: ${err.message}`);
+                    }
+                }
+            }
+
+            results.users = [...additionalAuthors, ...users];
         }
 
         res.status(200).json({

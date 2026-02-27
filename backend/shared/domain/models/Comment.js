@@ -25,10 +25,14 @@ const commentSchema = new mongoose.Schema({
     isEdited: {
         type: Boolean,
         default: false
+    },
+    likesCount: {
+        type: Number,
+        default: 0
     }
 }, { timestamps: true });
 
 // Index for nested comments retrieval
 commentSchema.index({ post: 1, parentComment: 1 });
 
-module.exports = mongoose.model("Comment", commentSchema);
+module.exports = mongoose.models.Comment || mongoose.model("Comment", commentSchema);

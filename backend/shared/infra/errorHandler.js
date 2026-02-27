@@ -34,6 +34,11 @@ const errorHandler = (err, req, res, next) => {
     // Log error stack (using shared logger)
     logger.error(`[Error Handler] ${err.message}`, { stack: err.stack, path: req.path, method: req.method });
 
+    if (err.message && err.message.includes("next is not a function")) {
+        console.error("CRITICAL STACK TRACE FOR NEXT IS NOT A FUNCTION:");
+        console.error(err.stack);
+    }
+
     res.status(statusCode).json({
         success: false,
         message,

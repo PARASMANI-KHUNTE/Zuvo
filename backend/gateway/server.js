@@ -47,7 +47,15 @@ app.use(requestTrace);
 
 
 // Security and Logging
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+            "img-src": ["'self'", "data:", "blob:", "https://res.cloudinary.com", "https://api.dicebear.com"],
+            "connect-src": ["'self'", "http://localhost:5000", "ws://localhost:5000"]
+        }
+    }
+}));
 app.use(morgan("dev"));
 app.use(cors({
     origin: process.env.CORS_ORIGIN || "*",
@@ -76,27 +84,43 @@ const proxyConfig = (prefix, target) => ({
     target,
     changeOrigin: true,
     pathFilter: (p) => p.startsWith(prefix),
-    proxyTimeout: 10000,
-    timeout: 10000,
+    proxyTimeout: 60000,
+    timeout: 60000,
     on: {
         proxyReq: (proxyReq, req, res) => {
-            proxyReq.setHeader("X-Request-ID", req.requestId || "");
+            const requestId = req.requestId || "unknown";
+            proxyReq.setHeader("X-Request-ID", requestId);
+
+            if (req.headers.authorization) {
+                logger.info(`ProxyReq [${prefix}]: Forwarding Auth (ID: ${requestId})`);
+            }
             if (req.headers.cookie) {
-                const cookieNames = req.headers.cookie.split(';').map(c => c.split('=')[0].trim());
-                logger.info(`ProxyReq [${prefix}]: Forwarding Cookie header with: ${cookieNames.join(', ')}`);
+                try {
+                    const cookieNames = req.headers.cookie.split(';').map(c => c.split('=')[0].trim());
+                    logger.info(`ProxyReq [${prefix}]: Forwarding Chips: ${cookieNames.join(', ')}`);
+                } catch (e) {
+                    logger.warn(`ProxyReq [${prefix}]: Malformed Cookie header`);
+                }
             }
         },
         proxyRes: (proxyRes, req, res) => {
             if (proxyRes.headers['set-cookie']) {
-                logger.info(`ProxyRes [${prefix}]: Received Set-Cookie from target: ${proxyRes.headers['set-cookie']}`);
+                logger.info(`ProxyRes [${prefix}]: Received Set-Cookie`);
             }
         },
-        error: (err, req, res) => {
-            logger.error(`Proxy Error [${prefix}]: ${err.message}`);
+        error: (err, req, res, next) => {
+            logger.error(`Proxy Error [${prefix}]: ${err.message}`, { stack: err.stack });
+
             if (!res.headersSent) {
+                // If it's a browser navigation (like OAuth redirect), redirect to frontend UI
+                const isBrowserReq = req.headers.accept && req.headers.accept.includes("text/html");
+                if (isBrowserReq && process.env.CORS_ORIGIN) {
+                    return res.redirect(`${process.env.CORS_ORIGIN}/auth/login?error=service_unavailable`);
+                }
+
                 res.status(502).json({
                     success: false,
-                    message: "Service Unavailable",
+                    message: "Gateway Timeout or Service Error",
                     error: err.message
                 });
             }
@@ -118,7 +142,12 @@ const wsProxy = createProxyMiddleware({
     target: REALTIME_SERVICE_URL,
     ws: true,
     changeOrigin: true,
-    logger: logger
+    logger: logger,
+    on: {
+        error: (err, req, res) => {
+            logger.error(`WebSocket Proxy Error: ${err.message}`);
+        }
+    }
 });
 app.use("/socket.io", wsProxy);
 
