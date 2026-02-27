@@ -60,6 +60,10 @@ We have established a comprehensive set of documents in the `documentation/` fol
 ---
 
 ## 🛠️ Current Status & Next Steps
-- **In Progress**: Implementing persistent notification storage in the backend and integrating the persistent view in the frontend.
-- **Next Up**: Finalizing the Chat service integration and performing a global UI/UX polish.
-- **Stability**: The system is stable, lint-clean, and ready for further feature expansion.
+- **Completed**:
+    - **Persistent Notification Storage**: Backend MongoDB persistence and frontend integration are fully operational.
+    - **Chat Service Integration**: Direct messaging with real-time updates and message history persistence is live.
+    - **Settings & Profile Management**: Comprehensive settings page with avatar/banner uploads and identity management.
+    - **Security Hardening**: Resolved hardcoded secrets and implemented JWT rotation with zero-trust gateway logic.
+- **Next Up**: Global UI/UX polish, performance benchmarking, and preparing for initial staging deployment.
+- **Stability**: The system is stable, production-ready for core features, and fully instrumented with OpenTelemetry.
