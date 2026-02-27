@@ -1,5 +1,5 @@
-const { asyncHandler, logger, redisClient, MessageBus, internalServices } = require("@zuvo/shared");
-const Comment = require("../models/Comment");
+const { asyncHandler, MessageBus, audit, internalServices, models, redisClient, logger } = require("@zuvo/shared");
+const Comment = models.Comment();
 const Relationship = require("../models/Relationship");
 
 /**
@@ -236,5 +236,157 @@ exports.getComments = asyncHandler(async (req, res, next) => {
         success: true,
         count: enrichedComments.length,
         data: enrichedComments
+    });
+});
+
+/**
+ * @desc    Get replies for a specific comment
+ * @route   GET /api/v1/interactions/comments/replies/:commentId
+ * @access  Public
+ */
+exports.getReplies = asyncHandler(async (req, res, next) => {
+    const { commentId } = req.params;
+
+    const replies = await Comment.find({ parentComment: commentId })
+        .sort({ createdAt: 1 });
+
+    const userIds = replies.map(r => r.user);
+    const userProfiles = await internalServices.getUsersProfiles(userIds);
+
+    const enrichedReplies = replies.map((reply, index) => {
+        const replyObj = reply.toObject();
+        replyObj.user = userProfiles[index];
+        return replyObj;
+    });
+
+    res.status(200).json({
+        success: true,
+        count: enrichedReplies.length,
+        data: enrichedReplies
+    });
+});
+
+const SavedPost = require("../models/SavedPost");
+const HiddenPost = require("../models/HiddenPost");
+
+/**
+ * @desc    Save or Unsave a post
+ * @route   POST /api/v1/interactions/save
+ * @access  Private
+ */
+exports.savePost = asyncHandler(async (req, res, next) => {
+    const { postId } = req.body;
+    const userId = req.user.id || req.user._id;
+
+    if (!postId) {
+        return res.status(400).json({ success: false, message: "postId is required" });
+    }
+
+    const existingSave = await SavedPost.findOne({ user: userId, post: postId });
+
+    if (existingSave) {
+        await SavedPost.deleteOne({ _id: existingSave._id });
+        return res.status(200).json({ success: true, message: "Post unsaved", isSaved: false });
+    }
+
+    await SavedPost.create({ user: userId, post: postId });
+    res.status(200).json({ success: true, message: "Post saved", isSaved: true });
+});
+
+/**
+ * @desc    Get user's saved posts
+ * @route   GET /api/v1/interactions/saved
+ * @access  Private
+ */
+exports.getSavedPosts = asyncHandler(async (req, res, next) => {
+    const userId = req.user.id || req.user._id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const savedRecords = await SavedPost.find({ user: userId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+    const postIds = savedRecords.map(record => record.post);
+
+    res.status(200).json({
+        success: true,
+        count: savedRecords.length,
+        data: { postIds }
+    });
+});
+
+/**
+ * @desc    Hide a post from feed
+ * @route   POST /api/v1/interactions/hide
+ * @access  Private
+ */
+exports.hidePost = asyncHandler(async (req, res, next) => {
+    const { postId } = req.body;
+    const userId = req.user.id || req.user._id;
+
+    if (!postId) {
+        return res.status(400).json({ success: false, message: "postId is required" });
+    }
+
+    // Upsert to ignore duplicates without error
+    await HiddenPost.updateOne(
+        { user: userId, post: postId },
+        { user: userId, post: postId },
+        { upsert: true }
+    );
+
+    res.status(200).json({ success: true, message: "Post hidden" });
+});
+
+/**
+ * @desc    Like or Dislike a comment
+ * @route   POST /api/v1/interactions/comments/like
+ * @access  Private
+ */
+exports.toggleCommentLike = asyncHandler(async (req, res, next) => {
+    const { commentId, action } = req.body; // action: 'like' or 'dislike'
+    const userId = req.user.id || req.user._id;
+
+    if (!commentId || !["like", "dislike"].includes(action)) {
+        return res.status(400).json({ success: false, message: "commentId and action (like/dislike) are required" });
+    }
+
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+        return res.status(404).json({ success: false, message: "Comment not found" });
+    }
+
+    const likeKey = `comment:${commentId}:likes`;
+    const userVotedKey = `comment:${commentId}:user:${userId}:voted`;
+
+    const existingVote = await redisClient.get(userVotedKey);
+
+    if (existingVote === action) {
+        // Toggle off
+        if (action === "like") await redisClient.decr(likeKey);
+        await redisClient.del(userVotedKey);
+        return res.status(200).json({ success: true, message: `${action} removed` });
+    }
+
+    if (existingVote) {
+        if (existingVote === "like") await redisClient.decr(likeKey);
+    }
+
+    if (action === "like") await redisClient.incr(likeKey);
+    await redisClient.set(userVotedKey, action);
+
+    const likes = await redisClient.get(likeKey);
+
+    // We can update the comment document in background or let sync handle it
+    comment.likesCount = parseInt(likes) || 0;
+    await comment.save();
+
+    res.status(200).json({
+        success: true,
+        message: `Comment ${action}d`,
+        data: { likes: comment.likesCount }
     });
 });

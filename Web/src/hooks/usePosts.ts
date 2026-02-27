@@ -12,6 +12,7 @@ export interface Post {
         avatar?: string;
     };
     image?: string;
+    media?: Array<{ url: string; type: string; publicId: string }>;
     tags: string[];
     likesCount: number;
     commentsCount: number;
@@ -60,9 +61,19 @@ export function usePosts() {
         }
     }, []);
 
-    const addComment = useCallback(async (postId: string, content: string) => {
+    const fetchReplies = useCallback(async (commentId: string) => {
         try {
-            const response = await apiClient.post("/interactions/comments", { postId, content });
+            const response = await apiClient.get(`/interactions/comments/replies/${commentId}`);
+            return response.data.success ? response.data.data : [];
+        } catch (err) {
+            console.error("Failed to fetch replies", err);
+            return [];
+        }
+    }, []);
+
+    const addComment = useCallback(async (postId: string, content: string, parentCommentId?: string) => {
+        try {
+            const response = await apiClient.post("/interactions/comments", { postId, content, parentCommentId });
             return response.data.success ? response.data.data : null;
         } catch (err) {
             console.error("Failed to add comment", err);
@@ -74,5 +85,5 @@ export function usePosts() {
         fetchPosts();
     }, [fetchPosts]);
 
-    return { posts, loading, error, refresh: fetchPosts, fetchPostById, fetchComments, addComment };
+    return { posts, loading, error, refresh: fetchPosts, fetchPostById, fetchComments, fetchReplies, addComment };
 }
