@@ -39,9 +39,39 @@ export function usePosts() {
         }
     };
 
+    const fetchPostById = async (id: string) => {
+        try {
+            const response = await apiClient.get(`/blogs/${id}`);
+            return response.data.success ? response.data.data : null;
+        } catch (err) {
+            console.error("Failed to fetch post", err);
+            return null;
+        }
+    };
+
+    const fetchComments = async (postId: string) => {
+        try {
+            const response = await apiClient.get(`/interactions/comments/${postId}`);
+            return response.data.success ? response.data.data : [];
+        } catch (err) {
+            console.error("Failed to fetch comments", err);
+            return [];
+        }
+    };
+
+    const addComment = async (postId: string, content: string) => {
+        try {
+            const response = await apiClient.post("/interactions/comments", { postId, content });
+            return response.data.success ? response.data.data : null;
+        } catch (err) {
+            console.error("Failed to add comment", err);
+            return null;
+        }
+    };
+
     useEffect(() => {
         fetchPosts();
     }, []);
 
-    return { posts, loading, error, refresh: fetchPosts };
+    return { posts, loading, error, refresh: fetchPosts, fetchPostById, fetchComments, addComment };
 }

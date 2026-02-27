@@ -6,16 +6,19 @@ const logger = require("./logger");
  * Handles transactional emails (Verifications, OTPs, Alerts)
  */
 class EmailService {
-    constructor() {
-        this.transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST || "smtp.gmail.com",
-            port: process.env.SMTP_PORT || 587,
-            secure: process.env.SMTP_SECURE === "true",
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS
-            }
-        });
+    getTransporter() {
+        if (!this.transporter) {
+            this.transporter = nodemailer.createTransport({
+                host: process.env.SMTP_HOST || "smtp.gmail.com",
+                port: process.env.SMTP_PORT || 587,
+                secure: process.env.SMTP_SECURE === "true",
+                auth: {
+                    user: process.env.SMTP_USER,
+                    pass: process.env.SMTP_PASS
+                }
+            });
+        }
+        return this.transporter;
     }
 
     /**
@@ -39,7 +42,7 @@ class EmailService {
         };
 
         try {
-            await this.transporter.sendMail(mailOptions);
+            await this.getTransporter().sendMail(mailOptions);
             logger.info(`Verification email sent to ${to}`);
         } catch (err) {
             logger.error(`Failed to send verification email to ${to}`, err);
@@ -67,7 +70,7 @@ class EmailService {
         };
 
         try {
-            await this.transporter.sendMail(mailOptions);
+            await this.getTransporter().sendMail(mailOptions);
             logger.info(`Password reset OTP sent to ${to}`);
         } catch (err) {
             logger.error(`Failed to send OTP to ${to}`, err);

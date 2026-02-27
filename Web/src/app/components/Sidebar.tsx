@@ -1,25 +1,25 @@
 "use client";
 import React from "react";
-import { Home, Compass, Bell, MessageSquare, Settings, LogOut, TrendingUp } from "lucide-react";
+import { Home, Compass, Bell, MessageSquare, Settings, LogOut, User, Plus } from "lucide-react";
 import { motion } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import apiClient from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-
-import { usePathname } from "next/navigation";
+import { useModals } from "@/context/ModalContext";
+import Link from "next/link";
 
 export default function Sidebar() {
     const router = useRouter();
     const pathname = usePathname();
-    const { logout } = useAuth();
+    const { logout, user } = useAuth();
+    const { openModal } = useModals();
 
     const handleLogout = async () => {
         try {
             await apiClient.post("/auth/logout");
-            logout(); // Clear local state
-            router.push("/"); // Show landing page
         } catch (err) {
-            console.error("Logout failed:", err);
+            // ignore
+        } finally {
             logout();
             router.push("/");
         }
@@ -28,17 +28,41 @@ export default function Sidebar() {
     return (
         <aside className="fixed left-0 top-24 bottom-6 w-64 ml-6 hidden lg:flex flex-col gap-6">
             {/* Navigation */}
-            <div className="glass-panel p-4 flex flex-col gap-1">
-                <SidebarItem icon={<Home className="w-5 h-5" />} label="Home" active={pathname === "/home" || pathname === "/"} onClick={() => router.push("/")} />
-                <SidebarItem icon={<Compass className="w-5 h-5" />} label="Explore" active={pathname === "/explore"} onClick={() => router.push("/explore")} />
-                <SidebarItem icon={<Bell className="w-5 h-5" />} label="Notifications" active={pathname === "/notifications"} onClick={() => router.push("/notifications")} />
-                <SidebarItem icon={<MessageSquare className="w-5 h-5" />} label="Messages" active={pathname === "/messages"} onClick={() => router.push("/messages")} />
+            <div className="flex flex-col gap-4">
+                <div className="glass-panel p-4 flex flex-col gap-1">
+                    <SidebarItem icon={<Home className="w-5 h-5" />} label="Home" active={pathname === "/" || pathname === "/home"} onClick={() => router.push("/")} />
+                    <SidebarItem icon={<Compass className="w-5 h-5" />} label="Explore" active={pathname === "/explore"} onClick={() => router.push("/explore")} />
+                    <SidebarItem icon={<Bell className="w-5 h-5" />} label="Notifications" active={pathname === "/notifications"} onClick={() => router.push("/notifications")} />
+                    <SidebarItem icon={<MessageSquare className="w-5 h-5" />} label="Messages" active={pathname === "/messages"} onClick={() => router.push("/messages")} />
+                </div>
+
+                <button
+                    onClick={() => openModal("compose")}
+                    className="btn-primary w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-neon-blue group"
+                >
+                    <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                    <span>Post</span>
+                </button>
             </div>
 
-            {/* User Settings */}
+            {/* User / Settings Section  */}
             <div className="glass-panel p-4 flex flex-col gap-1 mt-auto">
-                {/* Dummy username used below for preview purposes */}
-                <SidebarItem icon={<TrendingUp className="w-5 h-5" />} label="Profile" active={pathname.startsWith("/profile")} onClick={() => router.push("/profile/arivera_dev")} />
+                {/* Profile link using real username */}
+                {user?.username && (
+                    <SidebarItem
+                        icon={
+                            <div className="w-5 h-5 rounded-full overflow-hidden bg-slate-700 border border-white/10 flex-shrink-0">
+                                {user.avatar
+                                    ? <img src={user.avatar} alt="me" className="w-full h-full object-cover" />
+                                    : <User className="w-full h-full p-0.5 text-slate-400" />
+                                }
+                            </div>
+                        }
+                        label="Profile"
+                        active={pathname === `/profile/${user.username}`}
+                        onClick={() => router.push(`/profile/${user.username}`)}
+                    />
+                )}
                 <SidebarItem icon={<Settings className="w-5 h-5" />} label="Settings" active={pathname === "/settings"} onClick={() => router.push("/settings")} />
                 <SidebarItem
                     icon={<LogOut className="w-5 h-5 text-red-400" />}

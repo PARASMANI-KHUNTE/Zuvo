@@ -10,6 +10,8 @@ import { useRouter } from "next/navigation";
 import apiClient from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
+const GOOGLE_OAUTH_URL = `${process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ?? "http://localhost:5000"}/api/v1/auth/google`;
+
 export default function RegisterPage() {
     const router = useRouter();
     const { checkAuth, login } = useAuth();
@@ -86,8 +88,10 @@ export default function RegisterPage() {
                 if (loginRes.data?.accessToken && loginRes.data?.user) {
                     login(loginRes.data.user, loginRes.data.accessToken);
                 }
-            } catch {
-                // Login may fail if email verification is required — that's fine
+            } catch (loginErr) {
+                // Auto-login failed, user can sign in manually
+                // Fallback to manual check
+                await checkAuth();
             }
             setTimeout(() => router.push("/"), 2000);
         } catch (err: any) {
@@ -247,26 +251,15 @@ export default function RegisterPage() {
                     </form>
                 )}
 
-                {/* Divider */}
-                <div className="relative py-2">
-                    <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-white/5" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-[#020617] px-4 text-slate-500 font-medium">Fast Connect</span>
-                    </div>
-                </div>
-
                 {/* Social Login */}
-                <div className="grid grid-cols-2 gap-4">
-                    <button type="button" className="flex items-center justify-center gap-3 py-3 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-sm font-bold glass-panel group">
-                        <Github className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
-                        Github
-                    </button>
-                    <button type="button" className="flex items-center justify-center gap-3 py-3 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-sm font-bold glass-panel group">
+                <div className="flex justify-center pt-2">
+                    <a
+                        href={GOOGLE_OAUTH_URL}
+                        className="flex items-center justify-center gap-3 py-3 px-8 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-sm font-bold glass-panel group w-full"
+                    >
                         <img src="https://www.google.com/favicon.ico" className="w-4 h-4 grayscale group-hover:grayscale-0 transition-all" alt="Google" />
-                        Google
-                    </button>
+                        Continue with Google
+                    </a>
                 </div>
 
                 <p className="text-center text-sm text-slate-500">

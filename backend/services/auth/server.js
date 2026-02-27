@@ -15,6 +15,8 @@ initTracing("auth-service");
 const authRoutes = require("./src/routes/auth");
 
 const app = express();
+app.set("trust proxy", 1);
+app.set("etag", false);
 app.use(requestTrace);
 app.use(metrics.metricsMiddleware("auth-service"));
 app.use(faultInjection);

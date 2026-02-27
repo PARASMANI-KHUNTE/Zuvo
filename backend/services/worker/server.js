@@ -1,9 +1,8 @@
 const dotenv = require("dotenv");
+dotenv.config();
 const express = require("express");
 const { trace, context, propagation } = require("@opentelemetry/api");
 const { logger, connectRedis, MessageBus, redisClient, connectDB, initTracing, metrics, faultInjection, HealthCheck } = require("@zuvo/shared");
-
-dotenv.config();
 process.env.SERVICE_NAME = process.env.SERVICE_NAME || "worker-service";
 
 // Initialize Tracing FIRST
@@ -142,11 +141,58 @@ const handleTask = async (task) => {
             break;
         case "NOTIFICATION":
             logger.info(`Sending ${task.notificationType} notification to user ${task.userId}`);
+
+            // Persist to MongoDB
+            try {
+                const { models } = require("@zuvo/shared");
+                const Notification = models.Notification();
+                await Notification.create({
+                    userId: task.userId,
+                    type: (task.notificationType || "system").toLowerCase(),
+                    actor: task.actorId ? { id: task.actorId } : task.actor,
+                    content: task.content,
+                    targetId: task.targetId,
+                    targetImage: task.targetImage,
+                    read: false
+                });
+            } catch (persistErr) {
+                logger.error(`Failed to persist notification: ${persistErr.message}`);
+                // Continue to publish even if persistence fails (better to deliver live than nothing)
+            }
+
             await redisClient.publish("notifications", JSON.stringify(task));
             break;
         case "SEARCH_INDEX":
             logger.info(`Indexing post ${task.postId} for search...`);
             await new Promise(resolve => setTimeout(resolve, 500));
+            break;
+        case "LIKE_TOGGLE":
+            logger.info(`Syncing like for post ${task.postId}`);
+            try {
+                const { models } = require("@zuvo/shared");
+                const Post = models.Post();
+                // Increment/Decrement logic based on action
+                const increment = task.action === "like" ? 1 : -1;
+                await Post.findByIdAndUpdate(task.postId, {
+                    $inc: { likesCount: increment }
+                });
+            } catch (err) {
+                logger.error("Failed to sync like to DB", err);
+                throw err;
+            }
+            break;
+        case "COMMENT_CREATED":
+            logger.info(`Syncing comment count for post ${task.postId}`);
+            try {
+                const { models } = require("@zuvo/shared");
+                const Post = models.Post();
+                await Post.findByIdAndUpdate(task.postId, {
+                    $inc: { commentsCount: 1 }
+                });
+            } catch (err) {
+                logger.error("Failed to sync comment count to DB", err);
+                throw err;
+            }
             break;
         case "GDPR_DELETE_USER":
             logger.info(`GDPR: Initiating scrubbing for user ${task.userId}`);
@@ -178,13 +224,39 @@ const handleTask = async (task) => {
             }
             break;
         case "EMAIL_SEND":
-            logger.info(`Sending email of type ${task.type} to ${task.to}`);
-            if (task.type === "VERIFICATION") {
+            logger.info(`Sending email of type ${task.emailType} to ${task.to}`);
+            if (task.emailType === "VERIFICATION") {
                 const { emailService } = require("@zuvo/shared");
                 await emailService.sendVerificationEmail(task.to, task.data.token);
-            } else if (task.type === "OTP") {
+            } else if (task.emailType === "OTP") {
                 const { emailService } = require("@zuvo/shared");
                 await emailService.sendPasswordResetOTP(task.to, task.data.otp);
+            }
+            break;
+        case "FOLLOW":
+            logger.info(`Syncing follow counts for ${task.followerId} -> ${task.followingId}`);
+            try {
+                const { models } = require("@zuvo/shared");
+                const User = models.User();
+                await Promise.all([
+                    User.findByIdAndUpdate(task.followerId, { $inc: { followingCount: 1 } }),
+                    User.findByIdAndUpdate(task.followingId, { $inc: { followersCount: 1 } })
+                ]);
+            } catch (err) {
+                logger.error("Failed to sync follow counts", err);
+            }
+            break;
+        case "UNFOLLOW":
+            logger.info(`Syncing unfollow counts for ${task.followerId} -> ${task.followingId}`);
+            try {
+                const { models } = require("@zuvo/shared");
+                const User = models.User();
+                await Promise.all([
+                    User.findByIdAndUpdate(task.followerId, { $inc: { followingCount: -1 } }),
+                    User.findByIdAndUpdate(task.followingId, { $inc: { followersCount: -1 } })
+                ]);
+            } catch (err) {
+                logger.error("Failed to sync unfollow counts", err);
             }
             break;
         default:

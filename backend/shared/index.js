@@ -15,6 +15,8 @@ const emailService = require("./infra/email");
 const internalServices = require("./infra/internalServices");
 const HealthCheck = require("./infra/health");
 
+const models = require("./domain/models");
+
 // Domain Layer (Business Rules & Plugins)
 const { authenticate, authorize } = require("./domain/auth");
 const rateLimiter = require("./domain/rateLimiter");
@@ -46,6 +48,7 @@ module.exports = {
     HealthCheck,
 
     // Domain
+    models,
     authenticate,
     authorize,
     rateLimiter,

@@ -5,8 +5,8 @@ const { asyncLocalStorage } = require("./requestTrace");
 
 class InternalServiceClient {
     constructor() {
-        this.authBaseUrl = process.env.AUTH_INTERNAL_URL || "http://localhost:8000";
-        this.blogBaseUrl = process.env.BLOG_INTERNAL_URL || "http://localhost:8001";
+        this.authBaseUrl = process.env.AUTH_INTERNAL_URL || "http://127.0.0.1:8000";
+        this.blogBaseUrl = process.env.BLOG_INTERNAL_URL || "http://127.0.0.1:8001";
     }
 
     async _get(url, requestId) {
@@ -17,7 +17,10 @@ class InternalServiceClient {
             });
             return response.data.data;
         } catch (err) {
-            logger.error(`Internal call to ${url} failed [Req: ${requestId}]: ${err.message}`);
+            logger.error(`Internal call to ${url} failed [Req: ${requestId}]: ${err.message}`, {
+                status: err.response?.status,
+                data: err.response?.data
+            });
             throw err;
         }
     }
@@ -43,6 +46,7 @@ class InternalServiceClient {
 
             return user;
         } catch (err) {
+            logger.warn(`Fallback to Unknown User for ${userId}: ${err.message}`);
             return { id: userId, name: "Unknown User", username: "unknown" };
         }
     }
