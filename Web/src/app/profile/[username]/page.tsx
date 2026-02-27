@@ -148,7 +148,7 @@ export default function ProfilePage() {
                             {user.website && (
                                 <div className="flex items-center gap-3 text-sm text-slate-400">
                                     <LinkIcon className="w-4 h-4 text-primary/60" />
-                                    <a href={user.website} target="_blank" className="text-primary hover:underline">{user.website.replace("https://", "").replace("http://", "")}</a>
+                                    <a href={user.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{user.website.replace("https://", "").replace("http://", "")}</a>
                                 </div>
                             )}
                             <div className="flex items-center gap-3 text-sm text-slate-400">

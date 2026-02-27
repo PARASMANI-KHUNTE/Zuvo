@@ -6,6 +6,7 @@ import { useChat } from "@/hooks/useChat";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchParams } from "next/navigation";
 import apiClient from "@/lib/api";
+import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 
 export default function MessagesPage() {
     const { user } = useAuth();
@@ -64,9 +65,13 @@ export default function MessagesPage() {
         if (e.key === 'Enter') handleSend();
     };
 
+    const debouncedSendTyping = useDebouncedCallback((val: boolean) => {
+        sendTyping(val);
+    }, 500);
+
     const onTyping = (val: string) => {
         setMessageInput(val);
-        sendTyping(val.length > 0);
+        debouncedSendTyping(val.length > 0);
     };
 
     const getOtherParticipant = (participants: any[]) => {
@@ -99,7 +104,16 @@ export default function MessagesPage() {
                             return (
                                 <div
                                     key={chat._id}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-pressed={selectedId === chat._id}
                                     onClick={() => setSelectedId(chat._id)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            setSelectedId(chat._id);
+                                        }
+                                    }}
                                     className={`p-4 flex items-center gap-3 cursor-pointer transition-colors border-b border-white/5 w-full ${selectedId === chat._id ? 'bg-primary/10 border-l-2 border-l-primary' : 'hover:bg-white/5 border-l-2 border-l-transparent'
                                         }`}
                                 >
@@ -186,6 +200,7 @@ export default function MessagesPage() {
                         <div className="p-4 bg-[#0f172a]/40 border-t border-white/5 backdrop-blur-md">
                             <div className="flex items-center gap-3 relative">
                                 <button
+                                    type="button"
                                     onClick={() => alert("Image sharing coming soon!")}
                                     className="p-2 text-slate-400 hover:text-primary transition-colors glass-panel rounded-full border-white/5"
                                 >
@@ -200,6 +215,7 @@ export default function MessagesPage() {
                                     className="flex-1 bg-white/5 border border-white/10 rounded-full py-3 px-6 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder-slate-500"
                                 />
                                 <button
+                                    type="button"
                                     onClick={handleSend}
                                     disabled={!messageInput.trim()}
                                     className={`p-3 rounded-full flex items-center justify-center transition-all ${messageInput.trim() ? "bg-primary text-white shadow-[0_0_15px_rgba(235,54,120,0.5)]" : "glass-panel text-slate-400 border-white/5 outline-none cursor-not-allowed"

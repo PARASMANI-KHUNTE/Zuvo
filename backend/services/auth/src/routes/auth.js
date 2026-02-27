@@ -11,6 +11,7 @@ const {
     resetPassword,
     googleAuthSuccess,
     getInternalUser,
+    getInternalUsers,
     searchInternalUsers,
     checkUsername,
     checkEmail,
@@ -149,6 +150,7 @@ router.get("/check-email/:email", checkEmail);
 
 // Internal route for service-to-service communication
 router.get("/internal/user/:id", getInternalUser);
+router.post("/internal/users", getInternalUsers);
 router.get("/internal/users/search", searchInternalUsers);
 
 module.exports = router;

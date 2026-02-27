@@ -30,7 +30,6 @@ export const useChat = (conversationId?: string) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [isTyping, setIsTyping] = useState(false);
-    const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(false);
 
     // 1. Initialize Socket
@@ -97,8 +96,26 @@ export const useChat = (conversationId?: string) => {
                 if (msg.conversationId === conversationId) {
                     setMessages(prev => [...prev, msg]);
                 }
-                // Refresh conversations list to show last message
-                fetchConversations();
+
+                // Update conversations list locally to reflect last message without refetching
+                setConversations(prev => {
+                    const existing = prev.find(c => c._id === msg.conversationId);
+                    if (!existing) {
+                        fetchConversations(); // New conversation we don't have yet
+                        return prev;
+                    }
+
+                    const updated = prev.map(c =>
+                        c._id === msg.conversationId
+                            ? { ...c, lastMessage: msg, updatedAt: new Date().toISOString() }
+                            : c
+                    );
+
+                    // Re-sort: Move most recent to top
+                    return [...updated].sort((a, b) =>
+                        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+                    );
+                });
             };
 
             const handleTyping = (data: { userId: string, isTyping: boolean }) => {
@@ -128,17 +145,6 @@ export const useChat = (conversationId?: string) => {
         };
 
         socket.emit('chat:message', msgData);
-
-        // Optimistic update
-        const optimisticMsg: Message = {
-            conversationId,
-            sender: user,
-            content,
-            attachments,
-            createdAt: new Date().toISOString(),
-            status: 'sending'
-        };
-        // setMessages(prev => [...prev, optimisticMsg]); // Socket will echo back, so maybe redundant depending on server logic
     }, [socket, conversationId, user]);
 
     // 5. Typing Indicators
@@ -153,7 +159,6 @@ export const useChat = (conversationId?: string) => {
         messages,
         conversations,
         isTyping,
-        onlineUsers,
         loading,
         sendMessage,
         sendTyping,

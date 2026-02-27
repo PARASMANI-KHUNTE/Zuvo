@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, AtSign, ArrowRight, Loader2, CheckCircle2, XCircle, Sparkles } from "lucide-react";
+import { AtSign, ArrowRight, Loader2, CheckCircle2, XCircle, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import apiClient from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -55,7 +55,7 @@ export default function OnboardingPage() {
             setSuccess(true);
             await checkAuth();
             setTimeout(() => {
-                window.location.href = "/";
+                router.push("/");
             }, 2000);
         } catch (err: any) {
             setError(err.response?.data?.message || "Failed to set username. Please try again.");
@@ -122,8 +122,8 @@ export default function OnboardingPage() {
                                     onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, "").toLowerCase())}
                                     placeholder="yourname"
                                     className={`w-full bg-white/5 border rounded-2xl py-4 pl-12 pr-4 outline-none transition-all text-lg font-medium tracking-wide ${status === "available" ? "border-emerald-500/40 focus:border-emerald-500/60" :
-                                            status === "taken" ? "border-red-500/40 focus:border-red-500/60" :
-                                                "border-white/10 focus:border-primary/60"
+                                        status === "taken" ? "border-red-500/40 focus:border-red-500/60" :
+                                            "border-white/10 focus:border-primary/60"
                                         }`}
                                 />
                             </div>

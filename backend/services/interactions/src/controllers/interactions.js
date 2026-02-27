@@ -222,12 +222,15 @@ exports.getComments = asyncHandler(async (req, res, next) => {
         .skip(skip)
         .limit(limit);
 
-    // Enrich with user profiles
-    const enrichedComments = await Promise.all(comments.map(async (comment) => {
+    // Enrich with user profiles in bulk (Fix N+1 query)
+    const userIds = comments.map(c => c.user);
+    const userProfiles = await internalServices.getUsersProfiles(userIds);
+
+    const enrichedComments = comments.map((comment, index) => {
         const commentObj = comment.toObject();
-        commentObj.user = await internalServices.getUserProfile(comment.user);
+        commentObj.user = userProfiles[index];
         return commentObj;
-    }));
+    });
 
     res.status(200).json({
         success: true,

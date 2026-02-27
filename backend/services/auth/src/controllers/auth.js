@@ -341,6 +341,17 @@ exports.checkUsername = asyncHandler(async (req, res, next) => {
     res.status(200).json({ success: true, available: !user });
 });
 
+// @route   POST /api/v1/auth/internal/users
+exports.getInternalUsers = asyncHandler(async (req, res, next) => {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids)) {
+        return res.status(400).json({ success: false, message: "ids array is required" });
+    }
+
+    const users = await User.find({ _id: { $in: ids } }).select("name username avatar");
+    res.status(200).json({ success: true, data: users });
+});
+
 // @route   GET /api/v1/auth/check-email/:email
 exports.checkEmail = asyncHandler(async (req, res, next) => {
     const user = await User.findOne({ email: req.params.email.toLowerCase() });

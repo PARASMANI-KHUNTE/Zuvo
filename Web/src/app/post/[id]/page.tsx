@@ -33,24 +33,28 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
             ]);
             setPost(postData);
             setLikeCount(postData?.likesCount || 0);
+            setIsLiked(!!postData?.isLiked); // Initialize from server
             setComments(commentData);
             setLoading(false);
         };
         loadData();
-    }, [params.id]);
+    }, [params.id, fetchPostById, fetchComments]);
 
     const handleLike = async (e: React.MouseEvent) => {
         e.stopPropagation();
         if (liking) return;
         setLiking(true);
 
-        // Optimistic update
+        // Compute intended action
         const wasLiked = isLiked;
+        const intendedAction = wasLiked ? "unlike" : "like";
+
+        // Optimistic update
         setIsLiked(!wasLiked);
         setLikeCount(c => wasLiked ? c - 1 : c + 1);
 
         try {
-            await apiClient.post("/interactions/like", { postId: params.id, action: "like" });
+            await apiClient.post("/interactions/like", { postId: params.id, action: intendedAction });
         } catch (err) {
             // Revert on failure
             setIsLiked(wasLiked);
@@ -116,7 +120,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
             <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4 text-center">
                 <h2 className="text-3xl font-black text-white">Post not found</h2>
                 <p className="text-slate-500">It might have been removed or the link is broken.</p>
-                <button onClick={() => router.push("/")} className="btn-primary px-8 py-2 rounded-full font-bold">Back Home</button>
+                <button type="button" onClick={() => router.push("/")} className="btn-primary px-8 py-2 rounded-full font-bold">Back Home</button>
             </div>
         );
     }
@@ -128,6 +132,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
             <div className="flex-1 space-y-6">
                 {/* Back Button */}
                 <button
+                    type="button"
                     onClick={() => router.back()}
                     className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-2 group"
                 >
@@ -151,6 +156,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                             </div>
                         </Link>
                         <button
+                            type="button"
                             onClick={() => {
                                 navigator.clipboard.writeText(params.id);
                                 alert("Post ID copied to clipboard!");
@@ -183,6 +189,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                     {/* Actions */}
                     <div className="flex items-center gap-6 pt-6 border-t border-white/5">
                         <button
+                            type="button"
                             onClick={handleLike}
                             disabled={liking}
                             className={`flex items-center gap-2 transition-colors hover:text-rose-500 ${isLiked ? "text-rose-500" : "text-slate-400"}`}
@@ -194,7 +201,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                             <MessageCircle className="w-6 h-6" />
                             <span className="font-bold">{comments.length}</span>
                         </div>
-                        <button onClick={handleShare} className="flex items-center gap-2 text-slate-400 ml-auto hover:text-primary transition-colors">
+                        <button type="button" onClick={handleShare} className="flex items-center gap-2 text-slate-400 ml-auto hover:text-primary transition-colors">
                             <Share2 className="w-5 h-5" />
                             <span className="text-sm font-semibold">Share</span>
                         </button>
@@ -252,7 +259,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                                         <span className="text-xs text-slate-500 ml-2">@{comm.user?.username} · {formatDistanceToNow(new Date(comm.createdAt))} ago</span>
                                     </div>
                                 </Link>
-                                <button className="text-slate-600 hover:text-white"><MoreHorizontal className="w-4 h-4" /></button>
+                                <button type="button" className="text-slate-600 hover:text-white"><MoreHorizontal className="w-4 h-4" /></button>
                             </div>
                             <p className="text-slate-400 text-sm leading-relaxed pl-11">{comm.content}</p>
                         </motion.div>
