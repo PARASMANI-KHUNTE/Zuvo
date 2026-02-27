@@ -1,3 +1,8 @@
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+
 const tokenSchema = new mongoose.Schema({
     tokenHash: { type: String, required: true, index: true },
     ip: String,
