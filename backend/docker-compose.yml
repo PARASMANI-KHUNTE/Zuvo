@@ -13,6 +13,14 @@ services:
     ports:
       - "6379:6379"
 
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686" # UI
+      - "14268:14268" # Collector
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+
   gateway:
     build: ./gateway
     ports:
@@ -25,9 +33,11 @@ services:
       - REALTIME_SERVICE_URL=http://realtime:8004
       - FEED_SERVICE_URL=http://feed:8005
       - SEARCH_SERVICE_URL=http://search:8006
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
       - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
+      - jaeger
 
   auth:
     build: ./services/auth
@@ -35,9 +45,11 @@ services:
       - PORT=8000
       - MONGODB_URI=mongodb://mongodb:27017/Zuvo
       - REDIS_URL=redis://redis:6379
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
     depends_on:
       - mongodb
       - redis
+      - jaeger
 
   blog:
     build: ./services/blog
@@ -45,9 +57,11 @@ services:
       - PORT=8001
       - MONGODB_URI=mongodb://mongodb:27017/Zuvo
       - REDIS_URL=redis://redis:6379
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
     depends_on:
       - mongodb
       - redis
+      - jaeger
 
   interactions:
     build: ./services/interactions
@@ -55,9 +69,11 @@ services:
       - PORT=8002
       - MONGODB_URI=mongodb://mongodb:27017/Zuvo
       - REDIS_URL=redis://redis:6379
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
     depends_on:
       - mongodb
       - redis
+      - jaeger
 
   media:
     build: ./services/media
@@ -68,40 +84,50 @@ services:
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
       - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
     depends_on:
       - mongodb
       - redis
+      - jaeger
 
   realtime:
     build: ./services/realtime
     environment:
       - REALTIME_PORT=8004
       - REDIS_URL=redis://redis:6379
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
     depends_on:
       - redis
+      - jaeger
 
   worker:
     build: ./services/worker
     environment:
       - REDIS_URL=redis://redis:6379
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
     depends_on:
       - redis
+      - jaeger
 
   feed:
     build: ./services/feed
     environment:
       - PORT=8005
       - REDIS_URL=redis://redis:6379
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
     depends_on:
       - redis
+      - jaeger
 
   search:
     build: ./services/search
     environment:
       - PORT=8006
       - REDIS_URL=redis://redis:6379
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
     depends_on:
       - redis
+      - jaeger
 
 volumes:
   mongo-data:
