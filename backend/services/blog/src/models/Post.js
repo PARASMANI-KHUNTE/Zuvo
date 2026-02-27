@@ -57,4 +57,4 @@ postSchema.pre("save", function (next) {
 
 postSchema.plugin(softDelete);
 
-module.exports = mongoose.model("Post", postSchema);
+module.exports = mongoose.models.Post || mongoose.model("Post", postSchema);

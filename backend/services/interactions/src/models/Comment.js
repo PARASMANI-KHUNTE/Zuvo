@@ -30,4 +30,4 @@ const commentSchema = new mongoose.Schema({
 
 commentSchema.index({ post: 1, parentComment: 1 });
 
-module.exports = mongoose.model("Comment", commentSchema);
+module.exports = mongoose.models.Comment || mongoose.model("Comment", commentSchema);

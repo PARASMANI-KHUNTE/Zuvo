@@ -48,9 +48,15 @@ exports.getPosts = asyncHandler(async (req, res, next) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const total = await Post.countDocuments({ status: "published", isDeleted: { $ne: true } });
+    // Support filtering by author
+    const filter = { status: "published", isDeleted: { $ne: true } };
+    if (req.query.author) {
+        filter.author = req.query.author;
+    }
 
-    const posts = await Post.find({ status: "published", isDeleted: { $ne: true } })
+    const total = await Post.countDocuments(filter);
+
+    const posts = await Post.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit);

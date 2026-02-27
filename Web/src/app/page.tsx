@@ -1,8 +1,10 @@
 "use client";
-import { ArrowRight, Zap, Shield, Globe, Loader2 } from "lucide-react";
+import { ArrowRight, Zap, Shield, Globe, Loader2, TrendingUp, Users as UsersIcon, Hash } from "lucide-react";
 import { usePosts } from "@/hooks/usePosts";
 import PostCard from "./components/PostCard";
 import CreatePost from "./components/CreatePost";
+import TrendingSidebar from "./components/TrendingSidebar";
+import SuggestedUsers from "./components/SuggestedUsers";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 
@@ -70,55 +72,78 @@ export default function Home() {
     );
   }
 
+
   // AUTHENTICATED DASHBOARD
   return (
-    <main className="min-h-screen flex flex-col items-center justify-start p-6 text-center">
-      <div className="max-w-4xl w-full space-y-6 mt-4">
-        <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight">
-          Your <span className="text-neon">Feed.</span>
-        </h1>
-      </div>
+    <main className="min-h-screen py-6 px-4 md:px-8">
+      <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-8">
 
-      <div className="max-w-4xl w-full mt-12 space-y-12 text-left">
-        <CreatePost onSuccess={refresh} />
+        {/* Left / Main Feed Column */}
+        <div className="flex-1 space-y-10 text-left">
+          <div className="space-y-4">
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
+              Your <span className="text-neon">Feed.</span>
+            </h1>
+          </div>
 
-        <div className="text-left border-l-4 border-primary pl-6">
-          <h2 className="text-4xl font-bold">Trending Now</h2>
-          <p className="text-slate-400 mt-2">Discover what's happening across the decentralized web.</p>
+          <CreatePost onSuccess={refresh} />
+
+          <div className="border-l-4 border-primary pl-6">
+            <h2 className="text-3xl font-bold">Latest Discovery</h2>
+            <p className="text-slate-400 mt-1">What's happening across the network.</p>
+          </div>
+
+          {postsLoading && posts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+              <Loader2 className="w-12 h-12 text-primary animate-spin" />
+              <p className="text-slate-500 font-medium text-center w-full">Curating your experience...</p>
+            </div>
+          ) : error ? (
+            <div className="glass-panel p-12 text-center space-y-4">
+              <p className="text-red-400 font-medium">{error}</p>
+              <button onClick={() => refresh()} className="btn-primary py-2 px-6">Retry</button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-8">
+              {posts.length > 0 ? (
+                <>
+                  {posts.map((post) => (
+                    <PostCard
+                      key={post._id}
+                      id={post._id}
+                      author={post.author.username || "Anonymous"}
+                      avatar={post.author.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author._id}`}
+                      content={post.content}
+                      image={post.image !== "no-photo.jpg" ? post.image : undefined}
+                      timestamp={new Date(post.createdAt).toLocaleDateString()}
+                      likes={post.likesCount}
+                      comments={post.commentsCount}
+                    />
+                  ))}
+                  <div className="flex justify-center pt-4">
+                    <button
+                      onClick={() => refresh()}
+                      className="px-8 py-3 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all font-bold text-sm"
+                    >
+                      Load More Stories
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="glass-panel p-16 text-center">
+                  <p className="text-slate-500 text-lg">No posts yet. Be the first to share something!</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {postsLoading && posts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 space-y-4">
-            <Loader2 className="w-12 h-12 text-primary animate-spin" />
-            <p className="text-slate-500 font-medium text-center w-full">Curating your experience...</p>
-          </div>
-        ) : error ? (
-          <div className="glass-panel p-12 text-center space-y-4">
-            <p className="text-red-400 font-medium">{error}</p>
-            <button onClick={() => refresh()} className="btn-primary py-2 px-6">Retry</button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-8">
-            {posts.length > 0 ? (
-              posts.map((post) => (
-                <PostCard
-                  key={post._id}
-                  author={post.author.username || "Anonymous"}
-                  avatar={post.author.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author._id}`}
-                  content={post.content}
-                  image={post.image !== "no-photo.jpg" ? post.image : undefined}
-                  timestamp={new Date(post.createdAt).toLocaleDateString()}
-                  likes={post.likesCount}
-                  comments={post.commentsCount}
-                />
-              ))
-            ) : (
-              <div className="glass-panel p-16 text-center">
-                <p className="text-slate-500 text-lg">No posts yet. Be the first to share something!</p>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Right Sidebar Column */}
+        <div className="hidden lg:flex flex-col w-80 gap-6">
+          <TrendingSidebar />
+          <SuggestedUsers />
+        </div>
+
       </div>
     </main>
   );

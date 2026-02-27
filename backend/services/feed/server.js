@@ -21,7 +21,7 @@ app.use(express.json());
  */
 app.get("/api/v1/feed", authenticate, async (req, res, next) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.id || req.user._id;
 
         // In a high-scale system, this would hit a pre-computed Redis list
         const cachedFeed = await redisClient.lRange(`user:${userId}:feed`, 0, 50);

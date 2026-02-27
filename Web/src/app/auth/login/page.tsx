@@ -166,32 +166,14 @@ export default function LoginPage() {
                     </button>
                 </form>
 
-                {/* Divider */}
-                <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-white/5" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-[#020617] px-4 text-slate-500 font-medium">Or continue with</span>
-                    </div>
-                </div>
-
                 {/* Social Login */}
-                <div className="grid grid-cols-2 gap-4">
-                    <button
-                        type="button"
-                        className="flex items-center justify-center gap-3 py-3 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-sm font-bold glass-panel group cursor-not-allowed opacity-50"
-                        title="GitHub OAuth coming soon"
-                    >
-                        <Github className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
-                        Github
-                    </button>
+                <div className="flex justify-center">
                     <a
                         href={GOOGLE_OAUTH_URL}
-                        className="flex items-center justify-center gap-3 py-3 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-sm font-bold glass-panel group"
+                        className="flex items-center justify-center gap-3 py-3 px-8 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-sm font-bold glass-panel group w-full"
                     >
                         <img src="https://www.google.com/favicon.ico" className="w-4 h-4 grayscale group-hover:grayscale-0 transition-all" alt="Google" />
-                        Google
+                        Continue with Google
                     </a>
                 </div>
 

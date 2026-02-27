@@ -24,6 +24,66 @@ app.get("/ready", async (req, res) => {
     const ready = await HealthCheck.getReady();
     res.status(ready.status === "UP" ? 200 : 503).json(ready);
 });
+
+const { models, authenticate, connectDB: dbConnect, internalServices } = require("@zuvo/shared");
+const Notification = models.Notification();
+
+app.use(express.json());
+
+/**
+ * @desc Get user's notifications
+ * @route GET /api/v1/notifications
+ */
+app.get("/api/v1/notifications", authenticate, async (req, res) => {
+    try {
+        const userId = req.user._id || req.user.id;
+        const notifications = await Notification.find({ userId })
+            .sort({ createdAt: -1 })
+            .limit(50);
+
+        const data = notifications.map(n => {
+            const obj = n.toObject();
+            obj.isRead = obj.read; // normalize for frontend
+            return obj;
+        });
+
+        res.status(200).json({ success: true, data });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+});
+
+/**
+ * @desc Mark notification as read
+ * @route PUT /api/v1/notifications/:id/read
+ */
+app.put("/api/v1/notifications/:id/read", authenticate, async (req, res) => {
+    try {
+        await Notification.findOneAndUpdate(
+            { _id: req.params.id, userId: req.user._id || req.user.id },
+            { read: true }
+        );
+        res.status(200).json({ success: true });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+});
+
+/**
+ * @desc Mark all notifications as read
+ * @route PUT /api/v1/notifications/read-all
+ */
+app.put("/api/v1/notifications/read-all", authenticate, async (req, res) => {
+    try {
+        await Notification.updateMany(
+            { userId: req.user._id || req.user.id, read: false },
+            { read: true }
+        );
+        res.status(200).json({ success: true, message: "All notifications marked as read" });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+});
 const io = new Server(httpServer, {
     cors: {
         origin: process.env.CORS_ORIGIN || "*",
@@ -49,7 +109,7 @@ io.use((socket, next) => {
         const decoded = jwt.verify(token, secret);
 
         // Attach verified user identity to socket
-        socket.userId = decoded._id;
+        socket.userId = decoded.id || decoded._id;
         socket.userRole = decoded.role;
 
         logger.info(`WebSocket authenticated for user ${decoded._id}`);
@@ -61,6 +121,7 @@ io.use((socket, next) => {
 });
 
 const startServer = async () => {
+    await dbConnect();
     await connectRedis();
 
     // Pub/Sub for scalability
@@ -129,6 +190,7 @@ const startServer = async () => {
         try {
             const data = JSON.parse(message);
             // data = { userId, type, content }
+            logger.info(`Relaying notification to user ${data.userId} via Socket.io: ${data.notificationType || data.type}`);
             io.to(`user:${data.userId}`).emit("notification", data);
         } catch (err) {
             logger.error("Failed to parse notification message", err);

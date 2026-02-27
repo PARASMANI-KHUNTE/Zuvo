@@ -11,9 +11,13 @@ const {
     resetPassword,
     googleAuthSuccess,
     getInternalUser,
+    getInternalUsers,
     searchInternalUsers,
     checkUsername,
-    checkEmail
+    checkEmail,
+    updateProfile,
+    changePassword,
+    getPublicProfile
 } = require("../controllers/auth");
 const passport = require("passport");
 const { registerSchema, loginSchema } = require("../validations/auth");
@@ -113,7 +117,7 @@ router.post("/reset-password", resetPassword);
  *     tags: [Auth]
  *     summary: Logout and invalidate tokens
  */
-router.post("/logout", logout);
+router.post("/logout", authenticate, logout);
 
 /**
  * @openapi
@@ -137,12 +141,16 @@ router.post("/refresh-token", refreshToken);
  *         description: Current user data
  */
 router.get("/me", authenticate, getMe);
+router.put("/profile", authenticate, updateProfile);
+router.put("/change-password", authenticate, changePassword);
+router.get("/profile/:username", getPublicProfile);
 
 router.get("/check-username/:username", checkUsername);
 router.get("/check-email/:email", checkEmail);
 
 // Internal route for service-to-service communication
 router.get("/internal/user/:id", getInternalUser);
+router.post("/internal/users", getInternalUsers);
 router.get("/internal/users/search", searchInternalUsers);
 
 module.exports = router;
