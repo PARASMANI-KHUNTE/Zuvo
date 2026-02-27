@@ -24,4 +24,4 @@ const conversationSchema = new mongoose.Schema({
 conversationSchema.index({ participants: 1 });
 conversationSchema.index({ updatedAt: -1 });
 
-module.exports = mongoose.model("Conversation", conversationSchema);
+module.exports = mongoose.models.Conversation || mongoose.model("Conversation", conversationSchema);

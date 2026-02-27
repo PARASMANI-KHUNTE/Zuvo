@@ -68,21 +68,31 @@ const INTERACTIONS_SERVICE_URL = process.env.INTERACTIONS_SERVICE_URL || "http:/
 const FEED_SERVICE_URL = process.env.FEED_SERVICE_URL || "http://localhost:8005";
 const SEARCH_SERVICE_URL = process.env.SEARCH_SERVICE_URL || "http://localhost:8006";
 const CHAT_SERVICE_URL = process.env.CHAT_SERVICE_URL || "http://localhost:8007";
+const REALTIME_SERVICE_URL = process.env.REALTIME_SERVICE_URL || "http://localhost:8004";
 
 
 // Route grouping
-const proxyConfig = (path, target) => ({
+const proxyConfig = (prefix, target) => ({
     target,
     changeOrigin: true,
-    pathFilter: path,
-    proxyTimeout: 10000, // 10s timeout for proxy request
-    timeout: 10000,      // 10s connection timeout
+    pathFilter: (p) => p.startsWith(prefix),
+    proxyTimeout: 10000,
+    timeout: 10000,
     on: {
         proxyReq: (proxyReq, req, res) => {
             proxyReq.setHeader("X-Request-ID", req.requestId || "");
+            if (req.headers.cookie) {
+                const cookieNames = req.headers.cookie.split(';').map(c => c.split('=')[0].trim());
+                logger.info(`ProxyReq [${prefix}]: Forwarding Cookie header with: ${cookieNames.join(', ')}`);
+            }
+        },
+        proxyRes: (proxyRes, req, res) => {
+            if (proxyRes.headers['set-cookie']) {
+                logger.info(`ProxyRes [${prefix}]: Received Set-Cookie from target: ${proxyRes.headers['set-cookie']}`);
+            }
         },
         error: (err, req, res) => {
-            logger.error(`Proxy Error [${path}]: ${err.message}`);
+            logger.error(`Proxy Error [${prefix}]: ${err.message}`);
             if (!res.headersSent) {
                 res.status(502).json({
                     success: false,
@@ -101,6 +111,16 @@ app.use(createProxyMiddleware(proxyConfig("/api/v1/interactions", INTERACTIONS_S
 app.use(createProxyMiddleware(proxyConfig("/api/v1/feed", FEED_SERVICE_URL)));
 app.use(createProxyMiddleware(proxyConfig("/api/v1/search", SEARCH_SERVICE_URL)));
 app.use(createProxyMiddleware(proxyConfig("/api/v1/chat", CHAT_SERVICE_URL)));
+app.use(createProxyMiddleware(proxyConfig("/api/v1/notifications", REALTIME_SERVICE_URL)));
+
+// WebSocket Proxy
+const wsProxy = createProxyMiddleware({
+    target: REALTIME_SERVICE_URL,
+    ws: true,
+    changeOrigin: true,
+    logger: logger
+});
+app.use("/socket.io", wsProxy);
 
 
 
@@ -133,12 +153,6 @@ server.listen(PORT, () => {
 
 // WebSocket Upgrade Handler
 server.on("upgrade", (req, socket, head) => {
-    const REALTIME_SERVICE_URL = process.env.REALTIME_SERVICE_URL || "http://localhost:8004";
-    const proxy = createProxyMiddleware({
-        target: REALTIME_SERVICE_URL,
-        ws: true,
-        changeOrigin: true
-    });
-    proxy.upgrade(req, socket, head);
+    wsProxy.upgrade(req, socket, head);
 });
 

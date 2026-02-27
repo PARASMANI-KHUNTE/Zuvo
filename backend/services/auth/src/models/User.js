@@ -46,6 +46,10 @@ const userSchema = new mongoose.Schema({
         unique: true,
         sparse: true // Allows multiple null values
     },
+    hasSetUsername: {
+        type: Boolean,
+        default: false
+    },
     isVerified: {
         type: Boolean,
         default: false
@@ -63,12 +67,28 @@ const userSchema = new mongoose.Schema({
         enum: ["user", "admin"],
         default: "user"
     },
+    bio: {
+        type: String,
+        maxlength: [200, "Bio cannot be more than 200 characters"]
+    },
+    avatar: {
+        type: String,
+        default: "default-avatar.png"
+    },
+    banner: {
+        type: String,
+        default: "default-banner.jpg"
+    },
+    location: String,
+    website: String,
     refreshTokens: {
         type: [tokenSchema],
         select: false
     }
 }, {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
 
 // Hash password before saving

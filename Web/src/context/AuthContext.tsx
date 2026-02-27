@@ -3,13 +3,19 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import apiClient from "@/lib/api";
 
 interface User {
-    _id: string;
-    username: string;
-    email: string;
-    name: string;
+    _id?: string;
+    id?: string; // Some APIs use id
+    username?: string;
+    email?: string;
+    name?: string;
     avatar?: string;
+    banner?: string;
+    bio?: string;
+    website?: string;
+    location?: string;
     role?: string;
     isVerified?: boolean;
+    hasSetUsername?: boolean;
 }
 
 interface AuthContextType {
@@ -17,6 +23,7 @@ interface AuthContextType {
     loading: boolean;
     isAuthenticated: boolean;
     accessToken: string | null;
+    setUser: (user: User | null) => void;
     login: (userData: User, token: string) => void;
     logout: () => void;
     checkAuth: () => Promise<void>;
@@ -51,15 +58,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const executeAuth = async () => {
             try {
                 setLoading(true);
-                // Try to refresh first to get a new access token from the httpOnly cookie
+                // Try to refresh first
                 const refreshRes = await apiClient.post("/auth/refresh-token");
                 if (refreshRes.data?.accessToken) {
                     tokenRef.current = refreshRes.data.accessToken;
                     setAccessToken(refreshRes.data.accessToken);
 
-                    // Now fetch user profile
-                    const meRes = await apiClient.get("/auth/me");
-                    if (meRes.data.success) {
+                    const meRes = await apiClient.get("/auth/me", {
+                        headers: { "Cache-Control": "no-cache" }
+                    });
+                    if (meRes.data.success && meRes.data.data) {
                         setUser(meRes.data.data);
                     } else {
                         setUser(null);
@@ -71,8 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     tokenRef.current = null;
                     setAccessToken(null);
                 }
-            } catch {
-                // No valid session — guest mode
+            } catch (err: any) {
                 setUser(null);
                 tokenRef.current = null;
                 setAccessToken(null);
@@ -111,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             loading,
             isAuthenticated: !!user,
             accessToken,
+            setUser,
             login,
             logout,
             checkAuth

@@ -3,6 +3,7 @@ const router = express.Router();
 const { authenticate } = require("@zuvo/shared");
 const {
     getConversations,
+    getOrCreateConversation,
     getMessages,
     createGroup,
     sendMessage // HTTP fallback or for file uploads
@@ -11,6 +12,7 @@ const {
 router.use(authenticate);
 
 router.get("/conversations", getConversations);
+router.get("/conversation/user/:userId", getOrCreateConversation);
 router.get("/messages/:conversationId", getMessages);
 router.post("/groups", createGroup);
 router.post("/message", sendMessage);

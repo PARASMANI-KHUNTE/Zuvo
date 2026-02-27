@@ -1,12 +1,15 @@
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
-const User = require("../models/user");
-const { logger } = require("@zuvo/shared");
+const { logger, models } = require("@zuvo/shared");
+const User = models.User();
+
+const callbackURL = process.env.GOOGLE_CALLBACK_URL || "http://localhost:5000/api/v1/auth/google/callback";
+logger.info(`Passport: Initializing GoogleStrategy with callbackURL: ${callbackURL}`);
 
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL || "http://localhost:5000/api/v1/auth/google/callback",
+    callbackURL: callbackURL,
     proxy: true
 }, async (accessToken, refreshToken, profile, done) => {
     try {
@@ -20,11 +23,18 @@ passport.use(new GoogleStrategy({
 
         if (user) {
             // Update googleId if they previously signed up via email
+            let updated = false;
             if (!user.googleId) {
                 user.googleId = profile.id;
-                user.isVerified = true; // Google emails are pre-verified
-                await user.save();
+                user.isVerified = true;
+                updated = true;
             }
+            // Update avatar if not set
+            if (profile.photos && profile.photos.length > 0 && (!user.avatar || user.avatar === "default-avatar.png")) {
+                user.avatar = profile.photos[0].value;
+                updated = true;
+            }
+            if (updated) await user.save();
             return done(null, user);
         }
 
@@ -33,8 +43,10 @@ passport.use(new GoogleStrategy({
             name: profile.displayName,
             email: profile.emails[0].value,
             username: profile.emails[0].value.split("@")[0] + Math.floor(Math.random() * 1000),
+            avatar: profile.photos && profile.photos.length > 0 ? profile.photos[0].value : "default-avatar.png",
             googleId: profile.id,
-            isVerified: true
+            isVerified: true,
+            hasSetUsername: false
         });
 
         logger.info(`New user created via Google: ${user.email}`);
