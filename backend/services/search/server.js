@@ -1,6 +1,7 @@
 const express = require("express");
 const dotenv = require("dotenv");
-const { logger, requestTrace, connectRedis, redisClient, connectDB, initTracing, metrics, faultInjection, errorHandler, authenticate, models, internalServices } = require("@zuvo/shared");
+const { models, logger, requestTrace, connectRedis, redisClient, connectDB, initTracing, metrics, faultInjection, errorHandler, authenticate, internalServices, HealthCheck } = require("@zuvo/shared");
+const Post = models.Post();
 
 dotenv.config();
 process.env.SERVICE_NAME = "search-service";
@@ -38,7 +39,6 @@ app.get("/api/v1/search", async (req, res, next) => {
 
         // **FIX M2**: Real MongoDB text/regex search — no more mock data
         if (type === "posts" || type === "all") {
-            const Post = models.Post();
             const posts = await Post.find({
                 isDeleted: { $ne: true },
                 status: "published",
@@ -64,17 +64,7 @@ app.get("/api/v1/search", async (req, res, next) => {
         }
 
         if (type === "users" || type === "all") {
-            const User = models.User();
-            const users = await User.find({
-                $or: [
-                    { name: searchRegex },
-                    { username: searchRegex }
-                ]
-            })
-                .select("name username")
-                .skip(skip)
-                .limit(parseInt(limit));
-
+            const users = await internalServices.searchUsers(q, limit, skip);
             results.users = users;
         }
 
@@ -88,6 +78,63 @@ app.get("/api/v1/search", async (req, res, next) => {
     } catch (err) {
         next(err);
     }
+});
+
+/**
+ * @desc    Get trending topics/posts
+ * @route   GET /api/v1/search/trending
+ * @access  Public
+ */
+app.get("/api/v1/search/trending", async (req, res, next) => {
+    try {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        const trendingPosts = await Post.find({
+            status: "published",
+            isDeleted: { $ne: true },
+            createdAt: { $gte: sevenDaysAgo }
+        })
+            .sort({ likesCount: -1, createdAt: -1 })
+            .limit(5);
+
+        // Map to simpler format for sidebars
+        const trends = trendingPosts.map(p => ({
+            id: p._id,
+            tag: p.tags[0] || "General",
+            title: p.title,
+            postsCount: p.likesCount + p.commentsCount // Using sum as "engagement" score
+        }));
+
+        res.status(200).json({ success: true, data: trends });
+    } catch (err) {
+        next(err);
+    }
+});
+
+/**
+ * @desc    Get suggested users to follow
+ * @route   GET /api/v1/search/suggested-users
+ * @access  Public
+ */
+app.get("/api/v1/search/suggested-users", async (req, res, next) => {
+    try {
+        // Just return some users for now (could be based on shared tags in future)
+        const users = await internalServices.searchUsers("", 5);
+        res.status(200).json({ success: true, data: users });
+    } catch (err) {
+        next(err);
+    }
+});
+
+// Health Checks
+app.get("/health", async (req, res) => {
+    res.status(200).json(await HealthCheck.getHealth());
+});
+
+app.get("/ready", async (req, res) => {
+    const ready = await HealthCheck.getReady();
+    res.status(ready.status === "UP" ? 200 : 503).json(ready);
 });
 
 // Global Error Handler

@@ -7,7 +7,7 @@ const rateLimit = require("express-rate-limit");
 dotenv.config();
 process.env.SERVICE_NAME = "blog-service";
 
-const { connectDB, logger, requestTrace, initTracing, metrics, faultInjection, errorHandler } = require("@zuvo/shared");
+const { connectDB, logger, requestTrace, initTracing, metrics, faultInjection, errorHandler, HealthCheck } = require("@zuvo/shared");
 
 initTracing("blog-service");
 
@@ -48,10 +48,20 @@ connectRedis();
 // Routes
 app.use("/api/v1/blogs", blogRoutes);
 
+// Health Checks
+app.get("/health", async (req, res) => {
+    res.status(200).json(await HealthCheck.getHealth());
+});
+
+app.get("/ready", async (req, res) => {
+    const ready = await HealthCheck.getReady();
+    res.status(ready.status === "UP" ? 200 : 503).json(ready);
+});
+
 // Error Handling
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 8001;
 app.listen(PORT, () => {
-    console.log(`Blog service is running on port ${PORT}`);
+    logger.info(`Blog service is running on port ${PORT}`);
 });

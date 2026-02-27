@@ -1,5 +1,5 @@
-const { asyncHandler, MessageBus, audit, internalServices, models } = require("@zuvo/shared");
-const Post = models.Post();
+const { asyncHandler, MessageBus, audit, internalServices } = require("@zuvo/shared");
+const Post = require("../models/Post");
 
 // @route   POST /api/v1/blogs
 // @access  Private
@@ -48,9 +48,15 @@ exports.getPosts = asyncHandler(async (req, res, next) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const total = await Post.countDocuments({ status: "published", isDeleted: { $ne: true } });
+    // Support filtering by author
+    const filter = { status: "published", isDeleted: { $ne: true } };
+    if (req.query.author) {
+        filter.author = req.query.author;
+    }
 
-    const posts = await Post.find({ status: "published", isDeleted: { $ne: true } })
+    const total = await Post.countDocuments(filter);
+
+    const posts = await Post.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit);
@@ -174,4 +180,13 @@ exports.deletePost = asyncHandler(async (req, res, next) => {
         data: {}
     });
 
+});
+// @route   GET /api/v1/blogs/internal/:id
+// @access  Internal
+exports.getInternalPost = asyncHandler(async (req, res, next) => {
+    const post = await Post.findById(req.params.id).select("author title");
+    if (!post) {
+        return res.status(404).json({ success: false, message: "Post not found" });
+    }
+    res.status(200).json({ success: true, data: post });
 });

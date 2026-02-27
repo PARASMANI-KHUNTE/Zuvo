@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
+const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 
@@ -46,6 +46,10 @@ const userSchema = new mongoose.Schema({
         unique: true,
         sparse: true // Allows multiple null values
     },
+    hasSetUsername: {
+        type: Boolean,
+        default: false
+    },
     isVerified: {
         type: Boolean,
         default: false
@@ -63,19 +67,42 @@ const userSchema = new mongoose.Schema({
         enum: ["user", "admin"],
         default: "user"
     },
+    bio: {
+        type: String,
+        maxlength: [200, "Bio cannot be more than 200 characters"]
+    },
+    avatar: {
+        type: String,
+        default: "default-avatar.jpg"
+    },
+    banner: {
+        type: String,
+        default: "default-banner.jpg"
+    },
+    location: String,
+    website: String,
     refreshTokens: {
         type: [tokenSchema],
         select: false
+    },
+    followersCount: {
+        type: Number,
+        default: 0
+    },
+    followingCount: {
+        type: Number,
+        default: 0
     }
 }, {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
 
 // Hash password before saving
-userSchema.pre("save", async function (next) {
-    if (!this.isModified("password")) return next();
+userSchema.pre("save", async function () {
+    if (!this.isModified("password")) return;
     this.password = await bcrypt.hash(this.password, 10);
-    next();
 });
 
 // Compare password method
