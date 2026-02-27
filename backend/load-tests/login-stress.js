@@ -11,7 +11,7 @@ const BASE_URL = __ENV.API_URL || 'http://localhost:5000/api/v1';
 export default function () {
     const payload = JSON.stringify({
         email: 'test@example.com',
-        password: 'password123',
+        password: 'test_password_123',
     });
 
     const params = {

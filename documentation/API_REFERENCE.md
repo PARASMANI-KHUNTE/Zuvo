@@ -79,19 +79,19 @@ Identity and profile management.
     "name": "John Doe",
     "email": "john@example.com",
     "username": "johndoe",
-    "password": "Password123"
+    "password": "your_password_here"
   }
   ```
 - **Response (201)**: `{ "success": true, "message": "Check your email for verification link." }`
 
 ### 2. Login
 `POST /auth/login`
-- **Body**: `{ "email": "john@example.com", "password": "Password123" }`
+- **Body**: `{ "email": "john@example.com", "password": "your_password_here" }`
 - **Response (200)**:
   ```json
   {
     "success": true,
-    "accessToken": "ey...",
+    "accessToken": "ACCESS_TOKEN_HERE",
     "user": { "id": "...", "name": "...", "username": "...", "email": "...", "role": "user" }
   }
   ```
