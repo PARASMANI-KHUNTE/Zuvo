@@ -34,4 +34,4 @@ const notificationSchema = new mongoose.Schema({
 // Index for fetching unread count quickly
 notificationSchema.index({ userId: 1, read: 1 });
 
-module.exports = mongoose.model("Notification", notificationSchema);
+module.exports = mongoose.models.Notification || mongoose.model("Notification", notificationSchema);

@@ -1,11 +1,14 @@
-const { asyncHandler, MessageBus, audit, internalServices } = require("@zuvo/shared");
-const Post = require("../models/Post");
+const { asyncHandler, MessageBus, audit, internalServices, models, logger } = require("@zuvo/shared");
+const Post = models.Post();
 
 // @route   POST /api/v1/blogs
 // @access  Private
 exports.createPost = asyncHandler(async (req, res, next) => {
+    logger.info(`createPost: Attempting post creation for user: ${req.user?._id || req.user?.id}`);
+    logger.info(`createPost: Body: ${JSON.stringify(req.body)}`);
+
     // Add author from authenticated user
-    req.body.author = req.user._id;
+    req.body.author = req.user?._id || req.user?.id;
 
     const post = await Post.create(req.body);
 

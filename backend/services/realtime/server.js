@@ -86,7 +86,7 @@ app.put("/api/v1/notifications/read-all", authenticate, async (req, res) => {
 });
 const io = new Server(httpServer, {
     cors: {
-        origin: process.env.CORS_ORIGIN || "*",
+        origin: process.env.CORS_ORIGIN || "http://localhost:3000",
         methods: ["GET", "POST"]
     },
     maxHttpBufferSize: 1e6 // 1 MB max message size (fix E3)

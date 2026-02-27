@@ -1,5 +1,6 @@
 const nodemailer = require("nodemailer");
 const logger = require("./logger");
+const { redisClient } = require("./redis");
 
 /**
  * Enterprise Email Service
@@ -22,9 +23,43 @@ class EmailService {
     }
 
     /**
+     * Tracks daily recipient count to respect Gmail personal account limits (500/day)
+     */
+    async _checkAndUpdateQuota(recipientCount = 1) {
+        if (!redisClient.isOpen) return true; // Fail open if Redis is down
+
+        const today = new Date().toISOString().split('T')[0];
+        const key = `email_quota:${today}:${process.env.SMTP_USER}`;
+        const limit = 500;
+
+        try {
+            const currentCount = await redisClient.incrBy(key, recipientCount);
+            if (currentCount === recipientCount) {
+                // Set expiry for 24 hours on first increment
+                await redisClient.expire(key, 86400);
+            }
+
+            if (currentCount > limit) {
+                logger.error(`GMAIL QUOTA EXCEEDED: Sent ${currentCount} emails today (Limit: ${limit}). Email to be dropped.`);
+                return false;
+            }
+
+            logger.info(`Email quota check: ${currentCount}/${limit} used today.`);
+            return true;
+        } catch (err) {
+            logger.error("Email quota check failed", err);
+            return true;
+        }
+    }
+
+    /**
      * Send Verification Email
      */
     async sendVerificationEmail(to, token) {
+        if (!(await this._checkAndUpdateQuota(1))) {
+            throw new Error("Daily email quota exceeded (Gmail cap)");
+        }
+
         const url = `${process.env.GATEWAY_URL || 'http://localhost:5000'}/api/v1/auth/verify-email?token=${token}`;
 
         const mailOptions = {
@@ -54,6 +89,10 @@ class EmailService {
      * Send Password Reset OTP
      */
     async sendPasswordResetOTP(to, otp) {
+        if (!(await this._checkAndUpdateQuota(1))) {
+            throw new Error("Daily email quota exceeded (Gmail cap)");
+        }
+
         const mailOptions = {
             from: process.env.EMAIL_FROM || '"Zuvo" <noreply@zuvo.com>',
             to,

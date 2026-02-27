@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, ArrowRight, Github, Loader2, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import apiClient from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
@@ -11,11 +11,12 @@ const GOOGLE_OAUTH_URL = `${process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", 
 
 export default function LoginPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { checkAuth, login } = useAuth();
 
     const [formData, setFormData] = useState({ email: "", password: "" });
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(searchParams.get("error") === "service_unavailable" ? "Authentication service is temporarily unavailable. Please try again later." : searchParams.get("error") === "oauth_failed" ? "Google authentication failed. Please try again." : null);
     const [showPassword, setShowPassword] = useState(false);
     // Special state for unverified email (403)
     const [unverified, setUnverified] = useState(false);

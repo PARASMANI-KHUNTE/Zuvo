@@ -10,7 +10,7 @@ import Link from "next/link";
 
 export default function Home() {
   const { posts, loading: postsLoading, error, refresh } = usePosts();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, user, loading: authLoading } = useAuth();
 
   if (authLoading) {
     return (
@@ -118,6 +118,9 @@ export default function Home() {
                       timestamp={new Date(post.createdAt).toLocaleDateString()}
                       likes={post.likesCount}
                       comments={post.commentsCount}
+                      tags={post.tags}
+                      media={post.media}
+                      isOwnPost={isAuthenticated && user?._id === post.author._id}
                     />
                   ))}
                   <div className="flex justify-center pt-4">

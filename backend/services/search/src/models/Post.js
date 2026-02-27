@@ -23,10 +23,21 @@ const postSchema = new mongoose.Schema({
         required: true
     },
     tags: [String],
-    image: {
-        type: String,
-        default: "no-photo.jpg"
-    },
+    media: [{
+        url: {
+            type: String,
+            required: true
+        },
+        type: {
+            type: String,
+            enum: ["image", "video", "audio", "document"],
+            required: true
+        },
+        publicId: {
+            type: String,
+            required: true
+        }
+    }],
     status: {
         type: String,
         enum: ["draft", "published"],
@@ -44,10 +55,10 @@ const postSchema = new mongoose.Schema({
     timestamps: true
 });
 
-postSchema.pre("save", function (next) {
-    if (!this.isModified("title")) return next();
-    this.slug = slugify(this.title, { lower: true, strict: true });
-    next();
+postSchema.pre("save", function () {
+    if (this.isModified("title")) {
+        this.slug = slugify(this.title, { lower: true, strict: true });
+    }
 });
 
 postSchema.plugin(softDelete);

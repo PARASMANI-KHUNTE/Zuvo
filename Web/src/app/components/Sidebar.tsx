@@ -32,6 +32,7 @@ export default function Sidebar() {
                 <div className="glass-panel p-4 flex flex-col gap-1">
                     <SidebarItem icon={<Home className="w-5 h-5" />} label="Home" active={pathname === "/" || pathname === "/home"} onClick={() => router.push("/")} />
                     <SidebarItem icon={<Compass className="w-5 h-5" />} label="Explore" active={pathname === "/explore"} onClick={() => router.push("/explore")} />
+                    <SidebarItem icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m10 8 6 4-6 4V8Z" /><rect width="16" height="20" x="4" y="2" rx="2" ry="2" /></svg>} label="Shorts" active={pathname === "/shorts"} onClick={() => router.push("/shorts")} color="text-rose-400" />
                     <SidebarItem icon={<Bell className="w-5 h-5" />} label="Notifications" active={pathname === "/notifications"} onClick={() => router.push("/notifications")} />
                     <SidebarItem icon={<MessageSquare className="w-5 h-5" />} label="Messages" active={pathname === "/messages"} onClick={() => router.push("/messages")} />
                 </div>

@@ -109,7 +109,19 @@ Content creation and management.
 
 ### 1. Create Post
 `POST /blogs` (Auth Required)
-- **Body**: `{ "title": "...", "content": "...", "tags": ["tag1"], "image": "..." }`
+- **Body**:
+  ```json
+  {
+    "title": "Post Title",
+    "content": "Post Content",
+    "tags": ["tech", "ai"],
+    "media": [
+      { "url": "...", "type": "image", "publicId": "..." },
+      { "url": "...", "type": "video", "publicId": "..." }
+    ],
+    "image": "legacy_image_url" // Optional fallback
+  }
+  ```
 - **Response (201)**: `{ "success": true, "data": { ...post } }`
 
 ### 2. Get Posts
