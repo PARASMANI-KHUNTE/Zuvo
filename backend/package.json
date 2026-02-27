@@ -13,7 +13,7 @@
     "auth:dev": "npm run dev -w services/auth",
     "blog:dev": "npm run dev -w services/blog",
     "gateway:dev": "npm run dev -w gateway",
-    "dev": "concurrently \"npm run dev -w services/auth\" \"npm run dev -w services/blog\" \"npm run dev -w services/interactions\" \"npm run dev -w services/media\" \"npm run dev -w services/feed\" \"npm run dev -w services/search\" \"npm run dev -w services/realtime\" \"npm run dev -w services/worker\" \"npm run dev -w gateway\""
+    "dev": "concurrently \"npm run dev -w services/auth\" \"npm run dev -w services/blog\" \"npm run dev -w services/interactions\" \"npm run dev -w services/media\" \"npm run dev -w services/feed\" \"npm run dev -w services/search\" \"npm run dev -w services/realtime\" \"npm run dev -w services/worker\" \"npm run dev -w services/chat\" \"npm run dev -w gateway\""
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",

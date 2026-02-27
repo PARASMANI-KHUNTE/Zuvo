@@ -13,6 +13,9 @@ const faultInjection = require("./infra/faultInjection");
 const errorHandler = require("./infra/errorHandler");
 const emailService = require("./infra/email");
 const internalServices = require("./infra/internalServices");
+const HealthCheck = require("./infra/health");
+
+const models = require("./domain/models");
 
 // Domain Layer (Business Rules & Plugins)
 const { authenticate, authorize } = require("./domain/auth");
@@ -23,13 +26,6 @@ const softDelete = require("./domain/softDelete");
 const audit = require("./domain/audit");
 const versioning = require("./domain/versioning");
 const MigrationRunner = require("./domain/migrations");
-
-// Models (Centralized Domain Objects)
-const User = require("./domain/models/User");
-const Post = require("./domain/models/Post");
-const Message = require("./domain/models/Message");
-const Conversation = require("./domain/models/Conversation");
-const Comment = require("./domain/models/Comment");
 
 module.exports = {
     // Infra
@@ -49,8 +45,10 @@ module.exports = {
     errorHandler,
     emailService,
     internalServices,
+    HealthCheck,
 
     // Domain
+    models,
     authenticate,
     authorize,
     rateLimiter,
@@ -59,23 +57,5 @@ module.exports = {
     softDelete,
     audit,
     versioning,
-    MigrationRunner,
-
-    // Models (Lazy Export - avoid top-level require if possible, 
-    // but for now we just export the factory/model mapping)
-    models: {
-        User: () => require("./domain/models/User"),
-        Post: () => require("./domain/models/Post"),
-        Message: () => require("./domain/models/Message"),
-        Conversation: () => require("./domain/models/Conversation"),
-        Comment: () => require("./domain/models/Comment")
-    }
+    MigrationRunner
 };
-
-
-
-
-
-
-
-

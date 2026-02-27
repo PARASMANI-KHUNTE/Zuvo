@@ -12,7 +12,7 @@ exports.getConversations = asyncHandler(async (req, res) => {
     const skip = (page - 1) * limit;
 
     const conversations = await Conversation.find({
-        participants: { $in: [req.user.id] }
+        participants: { $in: [req.user.id || req.user._id] }
     })
         .sort({ updatedAt: -1 })
         .skip(skip)
@@ -77,13 +77,45 @@ exports.createGroup = asyncHandler(async (req, res) => {
     }
 
     const conversation = await Conversation.create({
-        participants: [...participants, req.user.id],
+        participants: [...participants, req.user.id || req.user._id],
         isGroup: true,
         groupName: name,
-        groupAdmin: req.user.id
+        groupAdmin: req.user.id || req.user._id
     });
 
     res.status(201).json({ success: true, data: conversation });
+});
+
+/**
+ * @desc    Find or create a 1-on-1 conversation
+ * @route   GET /api/v1/chat/conversation/user/:userId
+ */
+exports.getOrCreateConversation = asyncHandler(async (req, res) => {
+    const recipientId = req.params.userId;
+
+    if (recipientId === (req.user.id || req.user._id)) {
+        return res.status(400).json({ success: false, message: "Cannot start a conversation with yourself" });
+    }
+
+    let conversation = await Conversation.findOne({
+        isGroup: false,
+        participants: { $all: [req.user.id || req.user._id, recipientId] }
+    });
+
+    if (!conversation) {
+        conversation = await Conversation.create({
+            participants: [req.user.id || req.user._id, recipientId],
+            isGroup: false
+        });
+    }
+
+    // Enrich participants for the frontend
+    const convObj = conversation.toObject();
+    convObj.participants = await Promise.all(
+        conversation.participants.map(pId => internalServices.getUserProfile(pId))
+    );
+
+    res.status(200).json({ success: true, data: convObj });
 });
 
 /**
@@ -103,12 +135,12 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     if (!targetConversationId && recipientId) {
         let conversation = await Conversation.findOne({
             isGroup: false,
-            participants: { $all: [req.user.id, recipientId] }
+            participants: { $all: [req.user.id || req.user._id, recipientId] }
         });
 
         if (!conversation) {
             conversation = await Conversation.create({
-                participants: [req.user.id, recipientId],
+                participants: [req.user.id || req.user._id, recipientId],
                 isGroup: false
             });
         }
@@ -121,7 +153,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
 
     const message = await Message.create({
         conversationId: targetConversationId,
-        sender: req.user.id,
+        sender: req.user.id || req.user._id,
         content,
         attachments
     });

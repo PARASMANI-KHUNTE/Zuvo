@@ -18,11 +18,19 @@ class MessageBus {
             const carrier = {};
             propagation.inject(context.active(), carrier);
 
+            const store = require("./requestTrace").asyncLocalStorage.getStore();
+            const requestId = store?.requestId;
+
             const messageData = {
                 data: JSON.stringify(data),
                 timestamp: Date.now().toString(),
-                traceparent: carrier.traceparent // OTel standard header
+                traceparent: carrier.traceparent || "", // OTel standard header
+                requestId: requestId || ""
             };
+
+            // Remove empty keys so Redis doesn't complain
+            if (!messageData.traceparent) delete messageData.traceparent;
+            if (!messageData.requestId) delete messageData.requestId;
 
             const messageId = await redisClient.xAdd(stream, "*", messageData, {
                 TRIM: {
@@ -33,7 +41,11 @@ class MessageBus {
 
 
             // Instrument
-            metrics.messageBusEventsTotal.labels(stream, data.type || "unknown").inc();
+            metrics.messageBusEventsTotal.labels(
+                process.env.SERVICE_NAME || "unknown",
+                stream,
+                data.type || "unknown"
+            ).inc();
 
             logger.info(`Message published to ${stream}: ${messageId} (trimmed)`);
 

@@ -16,13 +16,13 @@ module.exports = function softDeletePlugin(schema) {
     });
 
     // Middleware to exclude deleted documents by default
-    schema.pre(/^find/, function (next) {
-        if (this.getQuery().includeDeleted) {
-            delete this.getQuery().includeDeleted;
-            return next();
+    schema.pre(/^find/, function () {
+        const query = this.getQuery();
+        if (query.includeDeleted) {
+            delete query.includeDeleted;
+            return;
         }
         this.where({ isDeleted: false });
-        next();
     });
 
     schema.methods.softDelete = async function () {

@@ -3,10 +3,6 @@ const crypto = require("crypto");
 const { asyncHandler, MessageBus, logger, models } = require("@zuvo/shared");
 const User = models.User();
 
-
-
-
-
 /**
  * @desc    Generate tokens and send in response
  */
@@ -20,10 +16,8 @@ const sendTokenResponse = async (user, statusCode, res, req) => {
 
     // Prune sessions (Max 5)
     if (userWithTokens.refreshTokens.length >= 5) {
-        // Find oldest non-revoked token
         const activeTokens = userWithTokens.refreshTokens.filter(t => !t.revoked);
         if (activeTokens.length >= 5) {
-            // Mark oldest as revoked instead of deleting to maintain history logic
             activeTokens.sort((a, b) => a.createdAt - b.createdAt);
             activeTokens[0].revoked = true;
         }
@@ -40,8 +34,9 @@ const sendTokenResponse = async (user, statusCode, res, req) => {
     const cookieOptions = {
         expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict"
+        secure: false, // Force false for local dev debugging
+        sameSite: "lax", // Force lax for local dev debugging
+        path: "/"
     };
 
     res
@@ -55,29 +50,51 @@ const sendTokenResponse = async (user, statusCode, res, req) => {
                 name: user.name,
                 email: user.email,
                 username: user.username,
-                role: user.role
+                role: user.role,
+                avatar: user.avatar,
+                hasSetUsername: user.hasSetUsername
             }
         });
 };
 
+// @route   GET /api/v1/auth/internal/users/search
+exports.searchInternalUsers = asyncHandler(async (req, res, next) => {
+    const { q, limit = 10, skip = 0 } = req.query;
 
-const emailService = require("../services/email.service");
+    const query = q
+        ? {
+            $or: [
+                { name: { $regex: q, $options: "i" } },
+                { username: { $regex: q, $options: "i" } }
+            ]
+        }
+        : {};
+
+    const users = await User.find(query)
+        .limit(parseInt(limit))
+        .skip(parseInt(skip))
+        .select("name username avatar");
+
+    res.status(200).json({
+        success: true,
+        data: users.map(user => ({
+            id: user._id,
+            name: user.name,
+            username: user.username,
+            avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`
+        }))
+    });
+});
 
 // @route   POST /api/v1/auth/register
-// @access  Public
 exports.register = asyncHandler(async (req, res, next) => {
     const { name, email, username, password } = req.body;
-
-    // Check if user exists
     const userExists = await User.findOne({ $or: [{ email }, { username }] });
     if (userExists) {
         return res.status(400).json({ success: false, message: "User already exists" });
     }
 
-    // Generate verification token
     const verificationToken = crypto.randomBytes(32).toString("hex");
-
-    // Create user
     const user = await User.create({
         name,
         email,
@@ -86,65 +103,47 @@ exports.register = asyncHandler(async (req, res, next) => {
         verificationToken
     });
 
-    // Send Verification Email via Background Worker
     try {
-        await MessageBus.publish("EMAIL_SEND", {
-            type: "VERIFICATION",
+        await MessageBus.publish("zuvo_tasks", {
+            type: "EMAIL_SEND",
+            emailType: "VERIFICATION",
             to: user.email,
             data: { token: verificationToken }
         });
-
-        res.status(201).json({
-            success: true,
-            message: "Registration successful. Verification email is being sent."
-        });
+        res.status(201).json({ success: true, message: "Registration successful. Verification email is being sent." });
     } catch (err) {
         logger.error(`Failed to publish verification email: ${err.message}`);
-        res.status(201).json({
-            success: true,
-            message: "Registration successful, but verification system is temporarily busy."
-        });
+        res.status(201).json({ success: true, message: "Registration successful, but verification system is temporarily busy." });
     }
 });
 
 // @route   POST /api/v1/auth/login
-// @access  Public
 exports.login = asyncHandler(async (req, res, next) => {
     const { email, password } = req.body;
-
-    // Validate email & password
     if (!email || !password) {
         return res.status(400).json({ success: false, message: "Please provide an email and password" });
     }
 
-    // Check for user
     const user = await User.findOne({ email }).select("+password");
     if (!user) {
         return res.status(401).json({ success: false, message: "Invalid credentials" });
     }
 
-    // Check if password matches
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
         return res.status(401).json({ success: false, message: "Invalid credentials" });
     }
 
-    // FIX B3: Check if email is verified — was returning success:true with 401 (inconsistency)
-    if (!user.isVerified) {
-        return res.status(403).json({
-            success: false,
-            message: "Account not verified. Please check your email."
-        });
+    if (process.env.NODE_ENV !== "development" && !user.isVerified) {
+        return res.status(403).json({ success: false, message: "Account not verified. Please check your email.", unverified: true });
     }
 
     await sendTokenResponse(user, 200, res, req);
 });
 
 // @route   POST /api/v1/auth/logout
-// @access  Private
 exports.logout = asyncHandler(async (req, res, next) => {
     const refreshToken = req.cookies?.refreshToken;
-
     if (refreshToken) {
         const user = await User.findById(req.user.id).select("+refreshTokens");
         if (user) {
@@ -160,45 +159,32 @@ exports.logout = asyncHandler(async (req, res, next) => {
     res.cookie("refreshToken", "none", {
         expires: new Date(Date.now() + 10 * 1000),
         httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+        path: "/"
     });
 
     res.status(200).json({ success: true, message: "Logged out successfully" });
 });
 
-// @route   POST /api/v1/auth/logout-all
-// @access  Private
-exports.logoutAllDevices = asyncHandler(async (req, res, next) => {
-    const user = await User.findById(req.user.id).select("+refreshTokens");
-    // Mark ALL as revoked for audit trail
-    user.refreshTokens.forEach(t => t.revoked = true);
-    await user.save({ validateBeforeSave: false });
-
-    res.cookie("refreshToken", "none", {
-        expires: new Date(Date.now() + 10 * 1000),
-        httpOnly: true,
-    });
-
-    res.status(200).json({ success: true, message: "Logged out from all devices" });
-});
-
 // @route   POST /api/v1/auth/refresh-token
-// @access  Public
 exports.refreshToken = asyncHandler(async (req, res, next) => {
     const refreshToken = req.cookies.refreshToken;
+    logger.info(`refreshToken: Attempting refresh. Cookie present: ${!!refreshToken}`);
 
     if (!refreshToken) {
         return res.status(401).json({ success: false, message: "No refresh token provided" });
     }
 
-    // FIX B1: Verify JWT signature AND expiry BEFORE trusting DB lookup
     let decoded;
     try {
         decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+        logger.info(`refreshToken: JWT verified for user: ${decoded._id}`);
     } catch (err) {
+        logger.warn(`refreshToken: JWT verification failed: ${err.message}`);
         return res.status(401).json({ success: false, message: "Invalid or expired token" });
     }
 
-    // Confirm the token exists in DB (validates it hasn't been revoked via logout)
     const user = await User.findById(decoded._id).select("+refreshTokens");
     if (!user) {
         return res.status(401).json({ success: false, message: "User no longer exists" });
@@ -207,169 +193,177 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
     const tokenHash = user.hashToken(refreshToken);
     const tokenRecord = user.refreshTokens.find(t => t.tokenHash === tokenHash);
 
-    // CRITICAL: Replay Detection
     if (tokenRecord && tokenRecord.revoked) {
-        logger.warn(`REPLAY ATTACK DETECTED for user ${user._id}. Invalidating all sessions.`);
-        user.refreshTokens.forEach(t => t.revoked = true);
-        await user.save({ validateBeforeSave: false });
+        const graceWindow = 15000; // 15s
+        const timeSinceUsed = Date.now() - new Date(tokenRecord.lastUsed || tokenRecord.updatedAt || tokenRecord.createdAt).getTime();
 
-        res.cookie("refreshToken", "none", {
-            expires: new Date(Date.now() + 10 * 1000),
-            httpOnly: true,
-        });
-        return res.status(401).json({ success: false, message: "Security breach detected. All sessions invalidated." });
+        if (timeSinceUsed > graceWindow) {
+            logger.warn(`REPLAY ATTACK for user ${user._id} (${timeSinceUsed}ms)`);
+            user.refreshTokens.forEach(t => t.revoked = true);
+            await user.save({ validateBeforeSave: false });
+
+            res.cookie("refreshToken", "none", {
+                expires: new Date(Date.now() + 10 * 1000),
+                httpOnly: true,
+                secure: false,
+                sameSite: "lax",
+                path: "/"
+            });
+            return res.status(401).json({ success: false, message: "Security lockout triggered" });
+        }
+        logger.info(`Grace period refresh allowed for ${user._id}`);
     }
 
     if (!tokenRecord) {
-        return res.status(401).json({ success: false, message: "Token has been invalidated" });
+        return res.status(401).json({ success: false, message: "Token not found" });
     }
 
-    // Role-based IP change detection (Loose match)
-    const currentIp = req.ip;
-    if (tokenRecord.ip && tokenRecord.ip !== currentIp) {
-        logger.info(`Session IP change for user ${user._id}: ${tokenRecord.ip} -> ${currentIp}`);
-        // We log it, but don't fail unless it's a high-value action
+    try {
+        tokenRecord.revoked = true;
+        tokenRecord.lastUsed = Date.now();
+        await user.save({ validateBeforeSave: false });
+    } catch (err) {
+        if (err.name === 'VersionError') return res.status(409).json({ success: false, message: "Concurrent refresh" });
+        throw err;
     }
-
-    // Rotate: Revoke old, issue new
-    tokenRecord.revoked = true;
-    tokenRecord.lastUsed = Date.now();
-    await user.save({ validateBeforeSave: false });
 
     await sendTokenResponse(user, 200, res, req);
 });
 
 // @route   GET /api/v1/auth/verify-email
-// @access  Public
 exports.verifyEmail = asyncHandler(async (req, res, next) => {
     const { token } = req.query;
-
-    if (!token) {
-        return res.status(400).json({ success: false, message: "Invalid token" });
-    }
-
     const user = await User.findOne({ verificationToken: token });
-
-    if (!user) {
-        return res.status(400).json({ success: false, message: "Invalid or expired token" });
-    }
+    if (!user) return res.status(400).json({ success: false, message: "Invalid token" });
 
     user.isVerified = true;
     user.verificationToken = undefined;
     await user.save({ validateBeforeSave: false });
-
-    // In a real app, redirect to a frontend "Success" page
     res.status(200).json({ success: true, message: "Email verified" });
 });
 
 // @route   POST /api/v1/auth/forgot-password
-// @access  Public
 exports.forgotPassword = asyncHandler(async (req, res, next) => {
     const { email } = req.body;
-
     const user = await User.findOne({ email });
-    if (!user) {
-        return res.status(404).json({ success: false, message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-    // FIX B4: Use crypto.randomInt for cryptographically secure OTP
     const otp = crypto.randomInt(100000, 999999).toString();
-
-    user.resetPasswordHash = user.hashToken(otp); // Use HMAC for OTP too
-    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-    user.otpAttempts = 0;
-    user.otpLockedUntil = undefined; // Reset any previous locks
+    user.resetPasswordHash = user.hashToken(otp);
+    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000;
     await user.save({ validateBeforeSave: false });
 
     try {
-        await MessageBus.publish("EMAIL_SEND", {
-            type: "OTP",
+        await MessageBus.publish("zuvo_tasks", {
+            type: "EMAIL_SEND",
+            emailType: "OTP",
             to: user.email,
             data: { otp }
         });
-        res.status(200).json({ success: true, message: "OTP sent to your email" });
+        res.status(200).json({ success: true, message: "OTP sent" });
     } catch (err) {
-        logger.error(`OTP Publish failed: ${err.message}`);
-        return res.status(500).json({ success: false, message: "Email system busy" });
+        res.status(500).json({ success: false, message: "Email failed" });
     }
 });
 
 // @route   POST /api/v1/auth/reset-password
-// @access  Public
 exports.resetPassword = asyncHandler(async (req, res, next) => {
     const { email, otp, newPassword } = req.body;
+    const user = await User.findOne({ email }).select("+resetPasswordHash");
+    if (!user || user.resetPasswordExpires < Date.now()) return res.status(400).json({ success: false, message: "OTP expired" });
 
-    const user = await User.findOne({ email }).select("+resetPasswordHash +otpAttempts +otpLockedUntil");
+    if (user.resetPasswordHash !== user.hashToken(otp)) return res.status(400).json({ success: false, message: "Invalid OTP" });
 
-    if (!user || !user.resetPasswordExpires || user.resetPasswordExpires < Date.now()) {
-        return res.status(400).json({ success: false, message: "OTP expired" });
-    }
-
-    // Brute-force protection: Lockout Window
-    if (user.otpLockedUntil && user.otpLockedUntil > Date.now()) {
-        const minutesLeft = Math.ceil((user.otpLockedUntil - Date.now()) / 60000);
-        return res.status(403).json({ success: false, message: `Account locked due to too many attempts. Try again in ${minutesLeft} minutes.` });
-    }
-
-    if (user.otpAttempts >= 5) {
-        user.otpLockedUntil = Date.now() + 15 * 60 * 1000; // 15 min lock
-        await user.save({ validateBeforeSave: false });
-        return res.status(403).json({ success: false, message: "Max attempts reached. Locked for 15 minutes." });
-    }
-
-    const otpHash = user.hashToken(otp);
-    if (user.resetPasswordHash !== otpHash) {
-        user.otpAttempts += 1;
-        await user.save({ validateBeforeSave: false });
-        return res.status(400).json({ success: false, message: "Invalid OTP" });
-    }
-
-    // Update password
     user.password = newPassword;
     user.resetPasswordHash = undefined;
     user.resetPasswordExpires = undefined;
-    user.otpAttempts = 0;
-    user.otpLockedUntil = undefined;
     await user.save();
-
-    res.status(200).json({ success: true, message: "Password reset successful" });
+    res.status(200).json({ success: true, message: "Reset successful" });
 });
 
-/**
- * @desc    Google OAuth Success Handler
- * Extracted user from passport and issues Zuvo JWTs
- */
 exports.googleAuthSuccess = asyncHandler(async (req, res, next) => {
     if (!req.user) {
-        return res.status(401).json({ success: false, message: "OAuth Failed" });
+        logger.warn("googleAuthSuccess: No user found in request");
+        return res.redirect(`${process.env.CORS_ORIGIN}/auth/login?error=oauth_failed`);
     }
 
-    // Issue Zuvo Tokens
-    await sendTokenResponse(req.user, 200, res, req);
+    logger.info(`googleAuthSuccess: OAuth successful for user: ${req.user._id}`);
+
+    const accessToken = req.user.generateAccessToken();
+    const refreshToken = req.user.generateRefreshToken();
+    const tokenHash = req.user.hashToken(refreshToken);
+
+    const userWithTokens = await User.findById(req.user._id).select("+refreshTokens");
+    userWithTokens.refreshTokens.push({ tokenHash, ip: req.ip, userAgent: req.get("user-agent") || "unknown" });
+    await userWithTokens.save({ validateBeforeSave: false });
+
+    res.cookie("refreshToken", refreshToken, {
+        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+        path: "/"
+    });
+
+    res.redirect(`${process.env.CORS_ORIGIN}/auth/callback?token=${accessToken}`);
 });
 
 // @route   GET /api/v1/auth/me
-// @access  Private
 exports.getMe = asyncHandler(async (req, res, next) => {
-    const user = await User.findById(req.user.id);
+    logger.info(`getMe: ID: ${req.user?._id || req.user?.id}`);
+    const user = await User.findById(req.user?._id || req.user?.id);
+    res.status(200).json({ success: true, data: user });
+});
+
+// @route   PUT /api/v1/auth/profile
+exports.updateProfile = asyncHandler(async (req, res, next) => {
+    const user = await User.findByIdAndUpdate(req.user.id || req.user._id, req.body, { new: true, runValidators: true });
+    res.status(200).json({ success: true, data: user });
+});
+
+// @route   GET /api/v1/auth/profile/:username
+exports.getPublicProfile = asyncHandler(async (req, res, next) => {
+    const user = await User.findOne({ username: req.params.username.toLowerCase() });
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
     res.status(200).json({ success: true, data: user });
 });
 
 // @route   GET /api/v1/auth/internal/user/:id
-// @access  Internal (Service-to-Service)
 exports.getInternalUser = asyncHandler(async (req, res, next) => {
     const user = await User.findById(req.params.id);
-    if (!user) {
-        return res.status(404).json({ success: false, message: "User not found" });
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    res.status(200).json({ success: true, data: user });
+});
+
+// @route   GET /api/v1/auth/check-username/:username
+exports.checkUsername = asyncHandler(async (req, res, next) => {
+    const user = await User.findOne({ username: req.params.username.toLowerCase() });
+    res.status(200).json({ success: true, available: !user });
+});
+
+// @route   POST /api/v1/auth/internal/users
+exports.getInternalUsers = asyncHandler(async (req, res, next) => {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids)) {
+        return res.status(400).json({ success: false, message: "ids array is required" });
     }
 
-    res.status(200).json({
-        success: true,
-        data: {
-            id: user._id,
-            name: user.name,
-            username: user.username,
-            avatar: user.avatar || "default-avatar.jpg"
-        }
-    });
+    const users = await User.find({ _id: { $in: ids } }).select("name username avatar");
+    res.status(200).json({ success: true, data: users });
+});
+
+// @route   GET /api/v1/auth/check-email/:email
+exports.checkEmail = asyncHandler(async (req, res, next) => {
+    const user = await User.findOne({ email: req.params.email.toLowerCase() });
+    res.status(200).json({ success: true, available: !user });
+});
+
+// @route   PUT /api/v1/auth/change-password
+exports.changePassword = asyncHandler(async (req, res, next) => {
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findById(req.user.id || req.user._id).select('+password');
+    if (!user || !(await user.comparePassword(currentPassword))) return res.status(401).json({ success: false, message: 'Invalid current password' });
+    user.password = newPassword;
+    await user.save();
+    res.status(200).json({ success: true, message: 'Password changed' });
 });
