@@ -372,8 +372,8 @@ export default function SettingsPage() {
                             <div className="p-4 bg-slate-900/50 rounded-xl border border-primary/20">
                                 <p className="text-xs text-primary font-mono mb-2">API KEY</p>
                                 <div className="flex gap-2">
-                                    <input type="password" value="zv_live_49f823kd0923jf0923" readOnly className="flex-1 bg-black/40 border border-white/10 rounded px-3 py-1.5 font-mono text-xs text-slate-400" />
-                                    <button className="text-xs font-bold text-primary">Copy</button>
+                                    <input type="password" value="••••••••••••••••••••••••" readOnly className="flex-1 bg-black/40 border border-white/10 rounded px-3 py-1.5 font-mono text-xs text-slate-400" />
+                                    <button className="text-xs font-bold text-primary opacity-50 cursor-not-allowed">Copy</button>
                                 </div>
                             </div>
                             <p className="text-xs text-slate-500">Use this token to authenticate with the Zuvo Public API. Keep it secret.</p>
