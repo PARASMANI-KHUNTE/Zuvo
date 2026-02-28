@@ -1,0 +1,26 @@
+{
+    "cli": {
+        "version": ">= 5.9.1"
+    },
+    "build": {
+        "development": {
+            "developmentClient": true,
+            "distribution": "internal"
+        },
+        "preview": {
+            "distribution": "internal"
+        },
+        "production": {}
+    },
+    "submit": {
+        "production": {}
+    },
+    "update": {
+        "extensions": {
+            "expo-updates": {
+                "checkAutomatically": "ON_LOAD",
+                "fallbackToCacheTimeout": 0
+            }
+        }
+    }
+}
