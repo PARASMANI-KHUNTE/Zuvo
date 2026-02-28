@@ -1,0 +1,16 @@
+{
+    "name": "ZuvoMobile",
+    "displayName": "ZuvoMobile",
+    "expo": {
+        "name": "ZuvoMobile",
+        "slug": "zuvo-mobile",
+        "version": "1.0.0",
+        "runtimeVersion": {
+            "policy": "appVersion"
+        },
+        "updates": {
+            "enabled": true,
+            "checkAutomatically": "ON_LOAD"
+        }
+    }
+}
