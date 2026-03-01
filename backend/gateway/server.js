@@ -128,6 +128,11 @@ const proxyConfig = (prefix, target) => ({
     }
 });
 
+app.use((req, res, next) => {
+    logger.info(`Gateway: Incoming ${req.method} ${req.path}`);
+    next();
+});
+
 app.use(createProxyMiddleware(proxyConfig("/api/v1/auth", AUTH_SERVICE_URL)));
 app.use(createProxyMiddleware(proxyConfig("/api/v1/blogs", BLOG_SERVICE_URL)));
 app.use(createProxyMiddleware(proxyConfig("/api/v1/media", MEDIA_SERVICE_URL)));
