@@ -91,10 +91,10 @@ exports.register = asyncHandler(async (req, res, next) => {
     const { name, email, username, password } = req.body;
 
     // SEAT LIMIT: Max 3 users
-    const userCount = await User.countDocuments();
-    if (userCount >= 3) {
-        return res.status(403).json({ success: false, message: "User seat limit reached (Max 3). Contact administrator." });
-    }
+    // const userCount = await User.countDocuments();
+    // if (userCount >= 3) {
+    //     return res.status(403).json({ success: false, message: "User seat limit reached (Max 3). Contact administrator." });
+    // }
 
     const userExists = await User.findOne({ $or: [{ email }, { username }] });
     if (userExists) {
@@ -141,9 +141,9 @@ exports.login = asyncHandler(async (req, res, next) => {
         return res.status(401).json({ success: false, message: "Invalid credentials" });
     }
 
-    if (process.env.NODE_ENV !== "development" && !user.isVerified) {
-        return res.status(403).json({ success: false, message: "Account not verified. Please check your email.", unverified: true });
-    }
+    // if (process.env.NODE_ENV !== "development" && !user.isVerified) {
+    //     return res.status(403).json({ success: false, message: "Account not verified. Please check your email.", unverified: true });
+    // }
 
     await sendTokenResponse(user, 200, res, req);
 });
@@ -289,30 +289,66 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
 });
 
 exports.googleAuthSuccess = asyncHandler(async (req, res, next) => {
+    // Parse encoded state
+    let stateObj = { platform: 'web' };
+    if (req.query.state) {
+        try {
+            stateObj = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
+        } catch (e) {
+            logger.error("googleAuthSuccess: Failed to parse state", e);
+        }
+    }
+
     if (!req.user) {
         logger.warn("googleAuthSuccess: No user found in request");
-        return res.redirect(`${process.env.CORS_ORIGIN}/auth/login?error=oauth_failed`);
+        const errorRedirect = stateObj.platform === 'mobile'
+            ? (stateObj.redirect_uri || 'zuvomobile://auth/login') + (stateObj.redirect_uri?.includes('?') ? '&' : '?') + 'error=oauth_failed'
+            : `${process.env.CORS_ORIGIN}/auth/login?error=oauth_failed`;
+        return res.redirect(errorRedirect);
     }
 
     logger.info(`googleAuthSuccess: OAuth successful for user: ${req.user._id}`);
 
-    const accessToken = req.user.generateAccessToken();
-    const refreshToken = req.user.generateRefreshToken();
-    const tokenHash = req.user.hashToken(refreshToken);
+    try {
+        const accessToken = req.user.generateAccessToken();
+        const refreshToken = req.user.generateRefreshToken();
+        const tokenHash = req.user.hashToken(refreshToken);
 
-    const userWithTokens = await User.findById(req.user._id).select("+refreshTokens");
-    userWithTokens.refreshTokens.push({ tokenHash, ip: req.ip, userAgent: req.get("user-agent") || "unknown" });
-    await userWithTokens.save({ validateBeforeSave: false });
+        const userWithTokens = await User.findById(req.user._id).select("+refreshTokens");
+        if (!userWithTokens) {
+            logger.warn(`googleAuthSuccess: User record not found for ID: ${req.user._id}`);
+            return res.redirect(stateObj.platform === 'mobile' ? 'zuvomobile://auth/login?error=user_not_found' : `${process.env.CORS_ORIGIN}/auth/login?error=user_not_found`);
+        }
 
-    res.cookie("refreshToken", refreshToken, {
-        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        httpOnly: true,
-        secure: false,
-        sameSite: "lax",
-        path: "/"
-    });
+        userWithTokens.refreshTokens.push({ tokenHash, ip: req.ip, userAgent: req.get("user-agent") || "unknown" });
+        await userWithTokens.save({ validateBeforeSave: false });
+        logger.info(`googleAuthSuccess: Tokens generated and saved for user: ${req.user._id}`);
 
-    res.redirect(`${process.env.CORS_ORIGIN}/auth/callback?token=${accessToken}`);
+        // For Web
+        res.cookie("refreshToken", refreshToken, {
+            expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            httpOnly: true,
+            secure: false,
+            sameSite: "lax",
+            path: "/"
+        });
+
+        if (stateObj.platform === 'mobile') {
+            const baseUri = stateObj.redirect_uri || 'zuvomobile://auth/callback';
+            const redirectUrl = `${baseUri}${baseUri.includes('?') ? '&' : '?'}token=${accessToken}`;
+            logger.info(`googleAuthSuccess: REDIRECTING MOBILE USER TO: ${redirectUrl}`);
+            return res.redirect(redirectUrl);
+        }
+
+        logger.info(`googleAuthSuccess: Redirecting web user to CORS_ORIGIN callback`);
+        res.redirect(`${process.env.CORS_ORIGIN}/auth/callback?token=${accessToken}`);
+    } catch (error) {
+        logger.error(`googleAuthSuccess Error: ${error.message}`, error);
+        const errorRedirect = stateObj.platform === 'mobile'
+            ? (stateObj.redirect_uri || 'zuvomobile://auth/login') + (stateObj.redirect_uri?.includes('?') ? '&' : '?') + 'error=server_error'
+            : `${process.env.CORS_ORIGIN}/auth/login?error=server_error`;
+        res.redirect(errorRedirect);
+    }
 });
 
 // @route   GET /api/v1/auth/me

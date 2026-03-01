@@ -1,98 +1,212 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { useAuth } from '../../context/AuthContext';
+import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const { user } = useAuth();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const features = [
+    { id: '1', title: 'Start a Blog', icon: 'create-outline', color: '#3B82F6' },
+    { id: '2', title: 'Explore Feed', icon: 'newspaper-outline', color: '#10B981' },
+    { id: '3', title: 'Direct Messages', icon: 'chatbubbles-outline', color: '#6366F1' },
+    { id: '4', title: 'Settings', icon: 'settings-outline', color: '#64748B' },
+  ];
+
+  return (
+    <View style={styles.container}>
+      <StatusBar style="light" />
+
+      {/* Header Section */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.welcomeText}>Hello,</Text>
+          <Text style={styles.userNameText}>{user?.name || 'Zuvonator'}</Text>
+        </View>
+        <TouchableOpacity style={styles.notificationBtn}>
+          <Ionicons name="notifications-outline" size={24} color="#F8FAFC" />
+          <View style={styles.notificationBadge} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Quick Actions / Featured */}
+        <BlurView intensity={20} style={styles.featuredCard}>
+          <Text style={styles.featuredTitle}>Ready to connect?</Text>
+          <Text style={styles.featuredSubtitle}>Share your thoughts with the Zuvo community today.</Text>
+          <TouchableOpacity style={styles.featuredBtn}>
+            <Text style={styles.featuredBtnText}>Create Post</Text>
+            <Ionicons name="add-circle" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </BlurView>
+
+        {/* Grid of Features */}
+        <Text style={styles.sectionTitle}>Explore Features</Text>
+        <View style={styles.grid}>
+          {features.map((item) => (
+            <TouchableOpacity key={item.id} style={styles.gridItem}>
+              <View style={[styles.iconContainer, { backgroundColor: `${item.color}20` }]}>
+                <Ionicons name={item.icon as any} size={28} color={item.color} />
+              </View>
+              <Text style={styles.gridText}>{item.title}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Placeholder Feed Section */}
+        <Text style={styles.sectionTitle}>Recent Activity</Text>
+        <View style={styles.emptyStateContainer}>
+          <Ionicons name="planet-outline" size={64} color="#334155" />
+          <Text style={styles.emptyStateText}>Establishing connection...</Text>
+          <Text style={styles.emptyStateSubtext}>Your personalized feed is coming soon!</Text>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: '#0F172A', // Slate 900
+    paddingTop: 60,
   },
-  stepContainer: {
-    gap: 8,
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 24,
+  },
+  welcomeText: {
+    fontSize: 16,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  userNameText: {
+    fontSize: 28,
+    color: '#F8FAFC',
+    fontWeight: 'bold',
+  },
+  notificationBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#1E293B',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+    borderWidth: 2,
+    borderColor: '#1E293B',
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
+  featuredCard: {
+    padding: 24,
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#1E293B50',
+    borderWidth: 1,
+    borderColor: '#334155',
+    marginBottom: 32,
+  },
+  featuredTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#F8FAFC',
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  featuredSubtitle: {
+    fontSize: 14,
+    color: '#94A3B8',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  featuredBtn: {
+    backgroundColor: '#3B82F6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  featuredBtnText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#F8FAFC',
+    marginBottom: 16,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 32,
+  },
+  gridItem: {
+    width: (width - 64) / 2,
+    backgroundColor: '#1E293B',
+    padding: 16,
+    borderRadius: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#33415550',
+  },
+  iconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  gridText: {
+    color: '#E2E8F0',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    backgroundColor: '#1E293B30',
+    borderRadius: 24,
+    borderStyle: 'dashed',
+    borderWidth: 2,
+    borderColor: '#334155',
+  },
+  emptyStateText: {
+    color: '#F8FAFC',
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+  },
+  emptyStateSubtext: {
+    color: '#64748B',
+    fontSize: 14,
+    marginTop: 8,
   },
 });

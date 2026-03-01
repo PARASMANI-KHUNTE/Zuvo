@@ -21,7 +21,7 @@ const {
 } = require("../controllers/auth");
 const passport = require("passport");
 const { registerSchema, loginSchema } = require("../validations/auth");
-const { authenticate, validator, rateLimiter } = require("@zuvo/shared");
+const { authenticate, validator, rateLimiter, logger } = require("@zuvo/shared");
 
 /**
  * @openapi
@@ -65,8 +65,30 @@ router.post("/login", validator(loginSchema), login);
  *   get:
  *     tags: [Auth]
  *     summary: Initiate Google OAuth flow
+ *     parameters:
+ *       - in: query
+ *         name: mobile
+ *         schema:
+ *           type: boolean
+ *         description: Set to true if initiating from the mobile app
  */
-router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+router.get("/google", (req, res, next) => {
+    const isMobile = req.query.mobile === 'true';
+    const clientRedirectUri = req.query.redirect_uri;
+
+    // Construct state as a JSON string to pass multiple values
+    const state = JSON.stringify({
+        platform: isMobile ? 'mobile' : 'web',
+        redirect_uri: clientRedirectUri || null
+    });
+
+    logger.info(`OAuth: Initiating Google flow. Mobile: ${isMobile}, Redirect: ${clientRedirectUri || 'default'}`);
+
+    passport.authenticate("google", {
+        scope: ["profile", "email"],
+        state: Buffer.from(state).toString('base64') // Encode state to prevent issues
+    })(req, res, next);
+});
 
 /**
  * @openapi
