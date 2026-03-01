@@ -82,11 +82,11 @@ router.get("/google", (req, res, next) => {
         redirect_uri: clientRedirectUri || null
     });
 
-    logger.info(`OAuth: Initiating Google flow. Mobile: ${isMobile}, Redirect: ${clientRedirectUri || 'default'}`);
+    logger.info(`OAuth: Google flow started`);
 
     passport.authenticate("google", {
         scope: ["profile", "email"],
-        state: Buffer.from(state).toString('base64') // Encode state to prevent issues
+        state: Buffer.from(state).toString('base64')
     })(req, res, next);
 });
 
