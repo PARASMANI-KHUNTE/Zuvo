@@ -25,16 +25,10 @@ function RootLayoutNav() {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === 'auth';
-    console.log("[AuthGuard] Checking state:", { hasUser: !!user, inAuthGroup, segments });
 
     if (!user && !inAuthGroup && segments[0] !== undefined && segments[0] !== '(tabs)') {
-      // If not logged in and not in auth group, and not on splash screen
-      // Redirect to login
-      console.log("[AuthGuard] No user, redirecting to login");
       router.replace('/auth/login');
     } else if (user && inAuthGroup) {
-      // Redirect away from login if already logged in
-      console.log("[AuthGuard] User logged in, redirecting to tabs");
       router.replace('/(tabs)');
     }
   }, [user, isLoading, segments, router]);

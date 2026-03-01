@@ -21,9 +21,7 @@ export default function LoginScreen() {
     const [googleLoading, setGoogleLoading] = useState(false);
 
     useEffect(() => {
-        console.log("[LoginScreen] Params:", { token: !!token, error });
         if (error) {
-            console.log("[LoginScreen] OAuth error param:", error);
             Alert.alert('Google Sign-In Failed', 'There was an error authenticating with Google.');
         }
     }, [token, error]);
@@ -63,24 +61,20 @@ export default function LoginScreen() {
         setGoogleLoading(true);
         try {
             const GATEWAY_URL = 'http://localhost:5000';
-            // This creates the correct URL for the current environment:
+            // Dynamically creates the correct redirect URL:
             // - Expo Go: exp://192.168.1.4:8081/--/auth/callback
             // - Standalone: zuvomobile://auth/callback
             const redirectUrl = Linking.createURL('/auth/callback');
-            console.log("[LoginScreen] Generated redirectUrl:", redirectUrl);
 
-            // Pass the redirect_uri to the backend so it knows where to send the token back
+            // Pass the redirect_uri so the backend knows where to send the token back
             const authUrl = `${GATEWAY_URL}/api/v1/auth/google?mobile=true&redirect_uri=${encodeURIComponent(redirectUrl)}`;
-            console.log("[LoginScreen] Launching authUrl:", authUrl);
 
             const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
-            console.log("[LoginScreen] WebBrowser result:", result.type, (result as any).url?.substring(0, 80));
 
-            // Fallback: if deep linking didn't trigger the callback route directly
+            // Fallback: handle token if deep linking didn't trigger callback route
             if (result.type === 'success' && (result as any).url) {
                 const { queryParams } = Linking.parse((result as any).url);
                 if (queryParams?.token) {
-                    console.log("[LoginScreen] Fallback: got token from result URL");
                     await login(queryParams.token as string);
                     router.replace('/(tabs)' as Href);
                 } else if (queryParams?.error) {
@@ -88,7 +82,7 @@ export default function LoginScreen() {
                 }
             }
         } catch (error) {
-            console.error('[LoginScreen] Google login error:', error);
+            console.error('Google login error:', error);
             Alert.alert('Error', 'Failed to open Google Sign-In.');
         } finally {
             setGoogleLoading(false);

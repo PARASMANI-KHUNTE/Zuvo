@@ -9,23 +9,17 @@ export default function AuthCallback() {
     const router = useRouter();
 
     useEffect(() => {
-        console.log("[AuthCallback] Params received:", { token: !!token, error });
-
         if (token && typeof token === 'string') {
             const handleLogin = async () => {
                 try {
-                    console.log("[AuthCallback] Logging in with token...");
                     await login(token);
-                    console.log("[AuthCallback] Login successful, redirecting to feed...");
                     router.replace('/(tabs)' as Href);
-                } catch (err) {
-                    console.error("[AuthCallback] Failed to login:", err);
+                } catch {
                     router.replace('/auth/login' as Href);
                 }
             };
             handleLogin();
         } else if (error) {
-            console.error("[AuthCallback] OAuth error:", error);
             router.replace('/auth/login' as Href);
         }
     }, [token, error, login, router]);
