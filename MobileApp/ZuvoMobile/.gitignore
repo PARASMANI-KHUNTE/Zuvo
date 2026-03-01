@@ -41,3 +41,10 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Secrets - DO NOT COMMIT
+google-services.json
+GoogleService-Info.plist
+*.env
+.env
+.env.*
