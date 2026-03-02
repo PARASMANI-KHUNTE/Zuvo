@@ -4,6 +4,7 @@ const { Server } = require("socket.io");
 const { createAdapter } = require("@socket.io/redis-adapter");
 const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
+const { ObjectId } = require("mongodb");
 
 dotenv.config();
 process.env.SERVICE_NAME = "realtime-service";
@@ -148,11 +149,12 @@ const startServer = async () => {
                 const { conversationId, content, attachments } = data;
 
                 const messageData = {
+                    _id: new ObjectId().toString(),
                     conversationId,
                     sender: userId,
                     content,
                     attachments,
-                    timestamp: new Date()
+                    createdAt: new Date().toISOString()
                 };
 
                 // 1. Emit to room for immediate feedback

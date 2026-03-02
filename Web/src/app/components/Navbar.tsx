@@ -1,10 +1,12 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { Search, Bell, MessageSquare, Loader2 } from "lucide-react";
 import { useSearch } from "@/hooks/useSearch";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useChat } from "@/hooks/useChat";
+import { useToast } from "@/context/ToastContext";
+import { motion, useAnimation } from "framer-motion";
 import Link from "next/link";
 
 export default function Navbar() {
@@ -12,11 +14,23 @@ export default function Navbar() {
     const { query, setQuery, loading } = useSearch();
     const { user, isAuthenticated } = useAuth();
     const { socket } = useChat();
+    const { toast } = useToast();
+    const [unread, setUnread] = useState(0);
+    const controls = useAnimation();
+
+    const shake = async () => {
+        await controls.start({
+            rotate: [0, -10, 10, -10, 10, 0],
+            transition: { duration: 0.5 }
+        });
+    };
 
     React.useEffect(() => {
         if (socket) {
             socket.on("notification", (data) => {
-                alert(`New Notification: ${data.content || "Interaction received!"}`);
+                toast(data.content || "Interaction received!", "notification");
+                setUnread(prev => prev + 1);
+                shake();
             });
             return () => {
                 socket.off("notification");
@@ -60,7 +74,27 @@ export default function Navbar() {
                 <div className="flex items-center gap-2">
                     {isAuthenticated ? (
                         <>
-                            <NavIconLink href="/notifications" icon={<Bell className="w-5 h-5" />} title="Notifications" />
+                            <div className="relative group">
+                                <NavIconLink
+                                    href="/notifications"
+                                    icon={
+                                        <motion.div animate={controls}>
+                                            <Bell className="w-5 h-5" />
+                                        </motion.div>
+                                    }
+                                    title="Notifications"
+                                    onClick={() => setUnread(0)}
+                                />
+                                {unread > 0 && (
+                                    <motion.div
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        className="absolute top-1 right-1 w-4 h-4 bg-rose-500 rounded-full flex items-center justify-center border-2 border-[#020617] pointer-events-none"
+                                    >
+                                        <span className="text-[10px] font-black text-white">{unread > 9 ? "9+" : unread}</span>
+                                    </motion.div>
+                                )}
+                            </div>
                             <NavIconLink href="/messages" icon={<MessageSquare className="w-5 h-5" />} title="Messages" />
                             <div className="h-8 w-[1px] bg-white/10 mx-1" />
                             <Link href={`/profile/${user?.username}`} className="flex items-center gap-2 hover:opacity-80 transition-all" title="My Profile">
@@ -81,9 +115,14 @@ export default function Navbar() {
     );
 }
 
-function NavIconLink({ href, icon, title }: { href: string; icon: React.ReactNode; title: string }) {
+function NavIconLink({ href, icon, title, onClick }: { href: string; icon: React.ReactNode; title: string; onClick?: () => void }) {
     return (
-        <Link href={href} title={title} className="p-2 rounded-xl hover:bg-white/5 text-slate-400 hover:text-white transition-all">
+        <Link
+            href={href}
+            title={title}
+            onClick={onClick}
+            className="p-2 rounded-xl hover:bg-white/5 text-slate-400 hover:text-white transition-all overflow-visible"
+        >
             {icon}
         </Link>
     );

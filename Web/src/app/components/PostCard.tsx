@@ -4,6 +4,8 @@ import { Heart, MessageCircle, Share2, MoreHorizontal, Bookmark, EyeOff, Edit3, 
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import apiClient from "@/lib/api";
+import { useToast } from "@/context/ToastContext";
+import { useConfirm } from "@/context/ConfirmationContext";
 
 interface PostCardProps {
     id: string;
@@ -24,6 +26,8 @@ interface PostCardProps {
 
 export default function PostCard({ id, author, avatar, content, image, media = [], likes: initialLikes, comments, timestamp, initialIsLiked = false, initialIsSaved = false, isOwnPost = false, tags = [], onDelete }: PostCardProps) {
     const router = useRouter();
+    const { toast } = useToast();
+    const { confirm } = useConfirm();
     const [likes, setLikes] = useState(initialLikes);
     const [isLiked, setIsLiked] = useState(initialIsLiked);
     const [isSaved, setIsSaved] = useState(initialIsSaved);
@@ -78,7 +82,7 @@ export default function PostCard({ id, author, avatar, content, image, media = [
                 });
             } else if (res.data.success) {
                 await navigator.clipboard.writeText(res.data.data.shareUrl);
-                alert("Link copied to clipboard!");
+                toast("Link copied to clipboard!", "success");
             }
         } catch (err) {
             console.error("Failed to share", err);
@@ -111,17 +115,27 @@ export default function PostCard({ id, author, avatar, content, image, media = [
     const handleDelete = async (e: React.MouseEvent) => {
         e.stopPropagation();
         setShowMenu(false);
-        if (confirm("Are you sure you want to delete this post?")) {
+
+        const confirmed = await confirm({
+            title: "Delete Post?",
+            message: "Are you sure you want to delete this post? This action cannot be undone.",
+            confirmText: "Delete",
+            type: "danger"
+        });
+
+        if (confirmed) {
             try {
                 const res = await apiClient.delete(`/blogs/${id}`);
                 if (res.data.success && onDelete) {
                     onDelete(id);
+                    toast("Post deleted successfully", "success");
                 } else {
-                    setHidden(true); // Hide it locally if no onDelete callback is provided
+                    setHidden(true); // Hide it locally
+                    toast("Post removed from view", "info");
                 }
             } catch (err) {
                 console.error("Failed to delete post", err);
-                alert("Failed to delete post");
+                toast("Failed to delete post", "error");
             }
         }
     };

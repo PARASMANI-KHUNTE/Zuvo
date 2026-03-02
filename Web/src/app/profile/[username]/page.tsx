@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Calendar, MapPin, Link as LinkIcon, MessageCircle, UserPlus, UserMinus, Loader2, Image as ImageIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import PostCard from "@/app/components/PostCard";
+import UserListModal from "@/app/components/UserListModal";
 import apiClient from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { format } from "date-fns";
@@ -18,6 +19,11 @@ export default function ProfilePage() {
     const [loading, setLoading] = useState(true);
     const [following, setFollowing] = useState(false);
     const [activeTab, setActiveTab] = useState("posts");
+    const [listModal, setListModal] = useState<{ isOpen: boolean; title: string; type: "followers" | "following" }>({
+        isOpen: false,
+        title: "",
+        type: "followers"
+    });
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -108,7 +114,7 @@ export default function ProfilePage() {
                         </div>
                     </div>
 
-                    {currentUser && (currentUser._id === (user._id || user.id) || currentUser.id === (user._id || user.id)) ? (
+                    {((currentUser?._id || currentUser?.id) === (user?._id || user?.id)) ? (
                         <button
                             onClick={() => router.push("/settings")}
                             className="bg-slate-800 text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-lg hover:bg-slate-700 transition-all flex items-center gap-2 border border-white/10"
@@ -159,12 +165,18 @@ export default function ProfilePage() {
                         </div>
 
                         <div className="flex items-center gap-6 pt-2">
-                            <div className="flex flex-col">
-                                <span className="text-white font-black text-lg">{stats.followingCount}</span>
+                            <div
+                                onClick={() => setListModal({ isOpen: true, title: "Following", type: "following" })}
+                                className="flex flex-col cursor-pointer group"
+                            >
+                                <span className="text-white font-black text-lg group-hover:text-primary transition-colors">{stats.followingCount}</span>
                                 <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">Following</span>
                             </div>
-                            <div className="flex flex-col">
-                                <span className="text-white font-black text-lg">{stats.followersCount}</span>
+                            <div
+                                onClick={() => setListModal({ isOpen: true, title: "Followers", type: "followers" })}
+                                className="flex flex-col cursor-pointer group"
+                            >
+                                <span className="text-white font-black text-lg group-hover:text-primary transition-colors">{stats.followersCount}</span>
                                 <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">Followers</span>
                             </div>
                         </div>
@@ -221,6 +233,23 @@ export default function ProfilePage() {
                     </div>
                 </div>
             </div>
+
+            <UserListModal
+                isOpen={listModal.isOpen}
+                onClose={() => {
+                    setListModal(prev => ({ ...prev, isOpen: false }));
+                    // Refresh stats when modal closes to sync follow counts
+                    const fetchStats = async () => {
+                        const userId = user._id || user.id;
+                        const relRes = await apiClient.get(`/interactions/relationships/${userId}`);
+                        setStats(relRes.data.data);
+                    };
+                    if (user) fetchStats();
+                }}
+                title={listModal.title}
+                userId={user._id || user.id}
+                type={listModal.type}
+            />
         </div>
     );
 }

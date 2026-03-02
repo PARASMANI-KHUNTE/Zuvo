@@ -14,6 +14,7 @@ exports.getConversations = asyncHandler(async (req, res) => {
     const conversations = await Conversation.find({
         participants: { $in: [req.user.id || req.user._id] }
     })
+        .populate('lastMessage')
         .sort({ updatedAt: -1 })
         .skip(skip)
         .limit(limit);
