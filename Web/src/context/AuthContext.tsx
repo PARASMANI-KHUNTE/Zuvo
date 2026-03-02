@@ -13,6 +13,12 @@ interface User {
     bio?: string;
     website?: string;
     location?: string;
+    socials?: {
+        twitter?: string;
+        instagram?: string;
+        github?: string;
+    };
+    isPrivate?: boolean;
     role?: string;
     isVerified?: boolean;
     hasSetUsername?: boolean;
