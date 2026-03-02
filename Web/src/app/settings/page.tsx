@@ -3,13 +3,26 @@ import React, { useState, useEffect, useRef } from "react";
 import { User, Lock, Bell, Moon, Shield, Webhook, Save, Loader2, Image as ImageIcon, CheckCircle2, AlertCircle, Twitter, Instagram, Github, MapPin, Globe, Camera } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/lib/api";
+import imageCompression from "browser-image-compression";
+
+const compressImage = async (file: File): Promise<File> => {
+    const options = {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+        fileType: file.type as string,
+    };
+    try {
+        return await imageCompression(file, options);
+    } catch {
+        return file; // fallback to original if compression fails
+    }
+};
 
 const SETTINGS_TABS = [
     { id: "account", label: "Account Overview", icon: User },
     { id: "privacy", label: "Privacy & Security", icon: Lock },
     { id: "notifications", label: "Notifications", icon: Bell },
-    { id: "appearance", label: "Appearance", icon: Moon },
-    { id: "dev", label: "Developer Options", icon: Webhook },
 ];
 
 export default function SettingsPage() {
@@ -83,8 +96,9 @@ export default function SettingsPage() {
         setStatus(null);
 
         try {
+            const compressed = await compressImage(file);
             const formDataMedia = new FormData();
-            formDataMedia.append("file", file);
+            formDataMedia.append("file", compressed);
             const uploadRes = await apiClient.post("/media/upload", formDataMedia, {
                 headers: { "Content-Type": "multipart/form-data" }
             });
@@ -109,8 +123,9 @@ export default function SettingsPage() {
         setStatus(null);
 
         try {
+            const compressed = await compressImage(file);
             const formDataMedia = new FormData();
-            formDataMedia.append("file", file);
+            formDataMedia.append("file", compressed);
             const uploadRes = await apiClient.post("/media/upload", formDataMedia, {
                 headers: { "Content-Type": "multipart/form-data" }
             });
@@ -337,21 +352,7 @@ export default function SettingsPage() {
                                         </div>
                                     </div>
 
-                                    <div className="space-y-6 pt-6 border-t border-white/5">
-                                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
-                                            <div>
-                                                <h4 className="text-sm font-bold text-slate-200">Private Profile</h4>
-                                                <p className="text-xs text-slate-500">Only approved followers can see your content.</p>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setFormData({ ...formData, isPrivate: !formData.isPrivate })}
-                                                className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${formData.isPrivate ? 'bg-accent shadow-neon-pink' : 'bg-slate-700'}`}
-                                            >
-                                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${formData.isPrivate ? 'right-1' : 'left-1'}`} />
-                                            </button>
-                                        </div>
-                                    </div>
+
 
                                     {status && (
                                         <div className={`p-4 rounded-2xl flex items-center gap-3 text-sm animate-in zoom-in-95 duration-300 ${status.type === 'success' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>
@@ -416,43 +417,6 @@ export default function SettingsPage() {
                     </div>
                 )}
 
-                {activeTab === "appearance" && (
-                    <div className="glass-panel p-6 md:p-8 rounded-2xl border border-white/5 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <h2 className="text-lg font-bold text-white border-b border-white/10 pb-4 mb-6">Theme Settings</h2>
-                        <div className="space-y-4">
-                            <p className="text-sm text-slate-300">Choose your preferred application theme. Note: Zuvo heavily relies on dark gradients.</p>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <button className="glass-panel border-2 border-primary p-4 rounded-xl relative overflow-hidden text-left hover:border-primary transition-all">
-                                    <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-black pointer-events-none" />
-                                    <div className="relative z-10 flex flex-col gap-2">
-                                        <span className="font-bold text-white">Neon Dark</span>
-                                        <span className="text-xs text-primary">Active</span>
-                                        <div className="h-10 w-full mt-2 rounded bg-white/5 border border-white/10" />
-                                    </div>
-                                </button>
-
-                                <button className="glass-panel border-2 border-transparent hover:border-white/20 p-4 rounded-xl relative overflow-hidden text-left transition-all opacity-50 cursor-not-allowed">
-                                    <div className="absolute inset-0 bg-[#f8fafc] pointer-events-none" />
-                                    <div className="relative z-10 flex flex-col gap-2">
-                                        <span className="font-bold text-slate-900">Light Mode</span>
-                                        <span className="text-xs text-slate-500">Coming Soon</span>
-                                        <div className="h-10 w-full mt-2 rounded bg-black/10 border border-black/10" />
-                                    </div>
-                                </button>
-
-                                <button className="glass-panel border-2 border-transparent hover:border-white/20 p-4 rounded-xl relative overflow-hidden text-left transition-all opacity-50 cursor-not-allowed">
-                                    <div className="absolute inset-0 bg-[#0f172a] pointer-events-none" />
-                                    <div className="relative z-10 flex flex-col gap-2">
-                                        <span className="font-bold text-slate-200">System Preference</span>
-                                        <span className="text-xs text-slate-500">Coming Soon</span>
-                                        <div className="h-10 w-full mt-2 rounded bg-white/10 border border-white/20" />
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
 
                 {activeTab === "privacy" && (
                     <div className="glass-panel p-8 rounded-2xl border border-white/5 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -491,22 +455,6 @@ export default function SettingsPage() {
                                     <div className="w-12 h-6 bg-accent rounded-full relative cursor-pointer shadow-neon-pink"><div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div></div>
                                 </div>
                             ))}
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === "dev" && (
-                    <div className="glass-panel p-8 rounded-2xl border border-white/5 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <h2 className="text-lg font-bold text-white border-b border-white/10 pb-4 mb-6">Developer Options</h2>
-                        <div className="space-y-4">
-                            <div className="p-4 bg-slate-900/50 rounded-xl border border-primary/20">
-                                <p className="text-xs text-primary font-mono mb-2">API KEY</p>
-                                <div className="flex gap-2">
-                                    <input type="password" value="••••••••••••••••••••••••" readOnly className="flex-1 bg-black/40 border border-white/10 rounded px-3 py-1.5 font-mono text-xs text-slate-400" />
-                                    <button className="text-xs font-bold text-primary opacity-50 cursor-not-allowed">Copy</button>
-                                </div>
-                            </div>
-                            <p className="text-xs text-slate-500">Use this token to authenticate with the Zuvo Public API. Keep it secret.</p>
                         </div>
                     </div>
                 )}
