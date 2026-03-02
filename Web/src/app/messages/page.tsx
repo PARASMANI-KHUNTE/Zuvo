@@ -1,12 +1,13 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { Search, Send, Image as ImageIcon, Phone, Video, MoreVertical, CheckCheck, Loader2 } from "lucide-react";
-import { format } from "date-fns";
+import { Search, Send, Image as ImageIcon, Phone, Video, MoreVertical, CheckCheck, Loader2, Clock } from "lucide-react";
+import { format, isValid } from "date-fns";
 import { useChat } from "@/hooks/useChat";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchParams } from "next/navigation";
 import apiClient from "@/lib/api";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
+import { useToast } from "@/context/ToastContext";
 
 export default function MessagesPage() {
     const { user } = useAuth();
@@ -14,6 +15,7 @@ export default function MessagesPage() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [messageInput, setMessageInput] = useState("");
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const { toast } = useToast();
 
     const {
         messages,
@@ -124,7 +126,7 @@ export default function MessagesPage() {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex justify-between items-baseline mb-1">
                                             <h3 className="font-semibold text-slate-200 text-sm truncate">{chat.isGroup ? chat.groupName : other.name}</h3>
-                                            <span className="text-xs text-slate-500 flex-shrink-0">{format(new Date(chat.updatedAt), "h:mm a")}</span>
+                                            <span className="text-xs text-slate-500 flex-shrink-0">{isValid(new Date(chat.updatedAt)) ? format(new Date(chat.updatedAt), "h:mm a") : ""}</span>
                                         </div>
                                         <div className="flex justify-between items-center text-xs text-slate-400 truncate">
                                             {chat.lastMessage?.content || "No messages yet"}
@@ -156,9 +158,9 @@ export default function MessagesPage() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-4 text-slate-400">
-                                <Phone className="w-5 h-5 cursor-pointer hover:text-white transition-colors" onClick={() => alert("Voice call feature coming soon!")} />
-                                <Video className="w-5 h-5 cursor-pointer hover:text-white transition-colors" onClick={() => alert("Video call feature coming soon!")} />
-                                <MoreVertical className="w-5 h-5 cursor-pointer hover:text-white transition-colors" onClick={() => alert("Options menu coming soon!")} />
+                                <Phone className="w-5 h-5 cursor-pointer hover:text-white transition-colors" onClick={() => toast("Voice call feature coming soon!", "info")} />
+                                <Video className="w-5 h-5 cursor-pointer hover:text-white transition-colors" onClick={() => toast("Video call feature coming soon!", "info")} />
+                                <MoreVertical className="w-5 h-5 cursor-pointer hover:text-white transition-colors" onClick={() => toast("Options menu coming soon!", "info")} />
                             </div>
                         </div>
 
@@ -172,19 +174,22 @@ export default function MessagesPage() {
                                 <>
                                     {messages.map((msg, idx) => {
                                         const isMe = (msg.sender?.id || msg.sender?._id || msg.sender) === (user?.id || user?._id);
+                                        const msgDate = new Date(msg.createdAt);
+                                        const timeStr = isValid(msgDate) ? format(msgDate, "h:mm a") : "";
                                         return (
-                                            <div key={idx} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                                            <div key={msg._id || idx} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
                                                 <div className={`max-w-[70%] ${isMe ? "order-2" : ""}`}>
                                                     <div
                                                         className={`p-3 rounded-2xl text-sm leading-relaxed shadow-lg ${isMe
                                                             ? "bg-primary text-white rounded-tr-sm"
                                                             : "glass-panel bg-[#1e293b]/80 text-slate-200 rounded-tl-sm border-white/5"
-                                                            }`}
+                                                            } ${msg.status === 'sending' ? 'opacity-70' : ''}`}
                                                     >
                                                         {msg.content}
                                                     </div>
                                                     <div className={`text-[10px] text-slate-500 mt-1 flex items-center gap-1 ${isMe ? "justify-end" : "justify-start"}`}>
-                                                        {format(new Date(msg.createdAt), "h:mm a")}
+                                                        {timeStr}
+                                                        {isMe && msg.status === 'sending' && <Clock className="w-3 h-3 text-slate-400 ml-1" />}
                                                         {isMe && msg.status !== 'sending' && <CheckCheck className="w-3 h-3 text-primary ml-1" />}
                                                     </div>
                                                 </div>
@@ -201,7 +206,7 @@ export default function MessagesPage() {
                             <div className="flex items-center gap-3 relative">
                                 <button
                                     type="button"
-                                    onClick={() => alert("Image sharing coming soon!")}
+                                    onClick={() => toast("Image sharing coming soon!", "info")}
                                     className="p-2 text-slate-400 hover:text-primary transition-colors glass-panel rounded-full border-white/5"
                                 >
                                     <ImageIcon className="w-5 h-5" />

@@ -29,6 +29,7 @@ const config: Config = {
             boxShadow: {
                 "neon-cyan": "0 0 10px rgba(0, 242, 255, 0.5), 0 0 20px rgba(0, 242, 255, 0.3)",
                 "neon-purple": "0 0 10px rgba(112, 0, 255, 0.5), 0 0 20px rgba(112, 0, 255, 0.3)",
+                "neon-pink": "0 0 10px rgba(255, 0, 229, 0.5), 0 0 20px rgba(255, 0, 229, 0.3)",
             },
         },
     },

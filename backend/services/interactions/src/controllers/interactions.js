@@ -390,3 +390,71 @@ exports.toggleCommentLike = asyncHandler(async (req, res, next) => {
         data: { likes: comment.likesCount }
     });
 });
+
+/**
+ * @desc    Get followers for a user
+ * @route   GET /api/v1/interactions/relationships/:userId/followers
+ * @access  Public
+ */
+exports.getFollowers = asyncHandler(async (req, res, next) => {
+    const { userId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+
+    const relationships = await Relationship.find({ following: userId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+    const followerIds = relationships.map(r => r.follower);
+    const profiles = await internalServices.getUsersProfiles(followerIds);
+
+    // Filter out profiles with 'Unknown User' if desired, or keep as is.
+    // We'll also check if the current user is following these people
+    const currentUserId = req.user?.id || req.user?._id;
+    const enrichedProfiles = await Promise.all(profiles.map(async (profile) => {
+        const profileId = profile.id || profile._id;
+        const isFollowing = currentUserId ? await Relationship.exists({ follower: currentUserId, following: profileId }) : false;
+        return { ...profile, isFollowing: !!isFollowing };
+    }));
+
+    res.status(200).json({
+        success: true,
+        count: enrichedProfiles.length,
+        data: enrichedProfiles
+    });
+});
+
+/**
+ * @desc    Get users followed by a user
+ * @route   GET /api/v1/interactions/relationships/:userId/following
+ * @access  Public
+ */
+exports.getFollowing = asyncHandler(async (req, res, next) => {
+    const { userId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+
+    const relationships = await Relationship.find({ follower: userId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+    const followingIds = relationships.map(r => r.following);
+    const profiles = await internalServices.getUsersProfiles(followingIds);
+
+    const currentUserId = req.user?.id || req.user?._id;
+    const enrichedProfiles = await Promise.all(profiles.map(async (profile) => {
+        const profileId = profile.id || profile._id;
+        const isFollowing = currentUserId ? await Relationship.exists({ follower: currentUserId, following: profileId }) : false;
+        return { ...profile, isFollowing: !!isFollowing };
+    }));
+
+    res.status(200).json({
+        success: true,
+        count: enrichedProfiles.length,
+        data: enrichedProfiles
+    });
+});

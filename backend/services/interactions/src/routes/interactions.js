@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { addComment, toggleLike, toggleCommentLike, generateShareLink, toggleFollow, getRelationships, getComments, getReplies, savePost, getSavedPosts, hidePost } = require("../controllers/interactions");
+const { addComment, toggleLike, toggleCommentLike, generateShareLink, toggleFollow, getRelationships, getFollowers, getFollowing, getComments, getReplies, savePost, getSavedPosts, hidePost } = require("../controllers/interactions");
 const { authenticate } = require("@zuvo/shared");
 
 // Helper for optional auth
@@ -17,6 +17,8 @@ router.post("/like", authenticate, toggleLike);
 router.get("/share/:postId", generateShareLink);
 router.post("/follow", authenticate, toggleFollow);
 router.get("/relationships/:userId", optionalAuth, getRelationships);
+router.get("/relationships/:userId/followers", optionalAuth, getFollowers);
+router.get("/relationships/:userId/following", optionalAuth, getFollowing);
 
 router.post("/save", authenticate, savePost);
 router.get("/saved", authenticate, getSavedPosts);

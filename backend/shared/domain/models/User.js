@@ -81,6 +81,15 @@ const userSchema = new mongoose.Schema({
     },
     location: String,
     website: String,
+    socials: {
+        twitter: String,
+        instagram: String,
+        github: String
+    },
+    isPrivate: {
+        type: Boolean,
+        default: false
+    },
     refreshTokens: {
         type: [tokenSchema],
         select: false

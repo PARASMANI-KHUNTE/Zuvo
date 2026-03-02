@@ -7,6 +7,7 @@ const SOCKET_URL = process.env.NEXT_PUBLIC_REALTIME_URL || 'http://localhost:500
 
 interface Message {
     _id?: string;
+    tempId?: string;
     conversationId: string;
     sender: any;
     content: string;
@@ -94,14 +95,41 @@ export const useChat = (conversationId?: string) => {
 
             const handleNewMessage = (msg: Message) => {
                 if (msg.conversationId === conversationId) {
-                    setMessages(prev => [...prev, msg]);
+                    setMessages(prev => {
+                        // Deduplicate: if we already have this message (optimistic), update it
+                        const existingIdx = prev.findIndex(
+                            m => (m._id && m._id === msg._id) || (m.tempId && m.tempId === msg._id)
+                        );
+                        if (existingIdx !== -1) {
+                            const updated = [...prev];
+                            updated[existingIdx] = { ...msg, status: 'delivered' };
+                            return updated;
+                        }
+
+                        // Skip if this is our own message (already added optimistically)
+                        const senderId = msg.sender?.id || msg.sender?._id || msg.sender;
+                        const myId = user?.id || user?._id;
+                        if (senderId === myId) {
+                            // Could be a late echo — check if we have a recent optimistic msg with same content
+                            const recentOptimistic = prev.find(
+                                m => m.status === 'sending' && m.content === msg.content
+                            );
+                            if (recentOptimistic) {
+                                return prev.map(m =>
+                                    m === recentOptimistic ? { ...msg, status: 'delivered' } : m
+                                );
+                            }
+                        }
+
+                        return [...prev, { ...msg, status: 'delivered' }];
+                    });
                 }
 
-                // Update conversations list locally to reflect last message without refetching
+                // Update conversations list locally to reflect last message
                 setConversations(prev => {
                     const existing = prev.find(c => c._id === msg.conversationId);
                     if (!existing) {
-                        fetchConversations(); // New conversation we don't have yet
+                        fetchConversations();
                         return prev;
                     }
 
@@ -111,7 +139,6 @@ export const useChat = (conversationId?: string) => {
                             : c
                     );
 
-                    // Re-sort: Move most recent to top
                     return [...updated].sort((a, b) =>
                         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
                     );
@@ -134,17 +161,43 @@ export const useChat = (conversationId?: string) => {
         }
     }, [conversationId, socket, fetchMessages, fetchConversations, user?.id, user?._id]);
 
-    // 4. Send Message
+    // 4. Send Message (with optimistic UI)
     const sendMessage = useCallback((content: string, attachments: any[] = []) => {
         if (!socket || !conversationId || !content.trim()) return;
 
-        const msgData = {
+        const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+        // Optimistic: add to local messages immediately
+        const optimisticMsg: Message = {
+            _id: tempId,
+            tempId,
+            conversationId,
+            sender: { id: user?.id || user?._id, _id: user?.id || user?._id, name: user?.name, avatar: user?.avatar },
+            content,
+            attachments,
+            createdAt: new Date().toISOString(),
+            status: 'sending'
+        };
+        setMessages(prev => [...prev, optimisticMsg]);
+
+        // Update conversation list preview
+        setConversations(prev => {
+            const updated = prev.map(c =>
+                c._id === conversationId
+                    ? { ...c, lastMessage: optimisticMsg, updatedAt: new Date().toISOString() }
+                    : c
+            );
+            return [...updated].sort((a, b) =>
+                new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+            );
+        });
+
+        // Emit via socket
+        socket.emit('chat:message', {
             conversationId,
             content,
             attachments
-        };
-
-        socket.emit('chat:message', msgData);
+        });
     }, [socket, conversationId, user]);
 
     // 5. Typing Indicators
