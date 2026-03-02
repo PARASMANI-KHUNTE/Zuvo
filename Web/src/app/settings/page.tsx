@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { User, Lock, Bell, Moon, Shield, Webhook, Save, Loader2, Image as ImageIcon, CheckCircle2, AlertCircle, Twitter, Instagram, Github, MapPin, Globe, Camera } from "lucide-react";
+import { User, Lock, Bell, Shield, Save, Loader2, Image as ImageIcon, CheckCircle2, AlertCircle, Twitter, Instagram, Github, MapPin, Globe, Camera } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/lib/api";
 import imageCompression from "browser-image-compression";
