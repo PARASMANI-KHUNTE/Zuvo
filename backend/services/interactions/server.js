@@ -42,11 +42,19 @@ app.get("/ready", async (req, res) => {
 // Error Handling
 app.use(errorHandler);
 
-// Database Connections
-connectDB();
-connectRedis();
+const start = async () => {
+    try {
+        await connectDB();
+        await connectRedis();
 
-const PORT = process.env.PORT || 8002;
-app.listen(PORT, () => {
-    logger.info(`Interaction service is running on port ${PORT}`);
-});
+        const PORT = process.env.PORT || 8002;
+        app.listen(PORT, () => {
+            logger.info(`Interaction service is running on port ${PORT}`);
+        });
+    } catch (err) {
+        logger.error("Interaction service startup failed", err);
+        process.exit(1);
+    }
+};
+
+start();

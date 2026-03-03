@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, ArrowRight, Github, Loader2, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import Link from "next/link";
@@ -12,7 +12,14 @@ const GOOGLE_OAUTH_URL = `${process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", 
 export default function LoginPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { checkAuth, login } = useAuth();
+    const { checkAuth, login, isAuthenticated, loading: authLoading } = useAuth();
+
+    // Redirect if already authenticated
+    useEffect(() => {
+        if (!authLoading && isAuthenticated) {
+            router.push("/");
+        }
+    }, [isAuthenticated, authLoading, router]);
 
     const [formData, setFormData] = useState({ email: "", password: "" });
     const [loading, setLoading] = useState(false);

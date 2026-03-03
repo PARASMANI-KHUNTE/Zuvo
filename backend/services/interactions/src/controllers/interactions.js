@@ -35,7 +35,9 @@ exports.addComment = asyncHandler(async (req, res, next) => {
                 userId: post.author.toString(),
                 notificationType: "COMMENT",
                 actorId: req.user.id || req.user._id,
-                content: `${req.user.name || "Someone"} commented on your post: "${content.substring(0, 30)}..."`
+                content: `commented on your post: "${content.substring(0, 30)}${content.length > 30 ? "..." : ""}"`,
+                targetId: postId,
+                targetImage: post.media?.[0]?.url
             });
         }
     } catch (notifyErr) {

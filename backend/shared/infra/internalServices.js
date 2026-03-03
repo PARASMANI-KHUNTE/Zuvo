@@ -51,6 +51,10 @@ class InternalServiceClient {
         }
     }
 
+    async getInternalUser(userId) {
+        return this.getUserProfile(userId);
+    }
+
     async searchUsers(query, limit = 10, skip = 0) {
         const store = asyncLocalStorage.getStore();
         return this._get(`${this.authBaseUrl}/api/v1/auth/internal/users/search?q=${query}&limit=${limit}&skip=${skip}`, store?.requestId);
