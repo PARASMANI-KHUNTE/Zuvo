@@ -8,9 +8,7 @@ module.exports = function softDeletePlugin(schema) {
     if (isIdentityModel) {
         // Identity Model logic (State machine based)
         schema.pre(/^find/, function () {
-            const query = this.getQuery();
-            if (query.includeAllStates) {
-                delete query.includeAllStates;
+            if (this.options.includeAllStates) {
                 return;
             }
             this.where({ accountStatus: "active" });

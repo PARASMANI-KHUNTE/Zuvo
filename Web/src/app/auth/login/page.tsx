@@ -16,7 +16,17 @@ export default function LoginPage() {
 
     const [formData, setFormData] = useState({ email: "", password: "" });
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(searchParams.get("error") === "service_unavailable" ? "Authentication service is temporarily unavailable. Please try again later." : searchParams.get("error") === "oauth_failed" ? "Google authentication failed. Please try again." : null);
+    const getErrorMessage = (code: string | null) => {
+        switch (code) {
+            case "service_unavailable": return "Authentication service is temporarily unavailable. Please try again later.";
+            case "oauth_failed": return "Google authentication failed. Please try again.";
+            case "user_not_found": return "We couldn't find your account. If you just deleted it, please wait for the grace period or sign up for a new one.";
+            case "account_deleted": return "This account has been permanently deleted and cannot be reactivated.";
+            default: return null;
+        }
+    };
+
+    const [error, setError] = useState<string | null>(getErrorMessage(searchParams.get("error")));
     const [showPassword, setShowPassword] = useState(false);
     // Special state for unverified email (403)
     const [unverified, setUnverified] = useState(false);

@@ -132,7 +132,7 @@ exports.login = asyncHandler(async (req, res, next) => {
     }
 
     // Include all states during login to allow reactivation
-    const user = await User.findOne({ email }).select("+password").where({ includeAllStates: true });
+    const user = await User.findOne({ email }).select("+password").setOptions({ includeAllStates: true });
     if (!user) {
         return res.status(401).json({ success: false, message: "Invalid credentials" });
     }
@@ -371,7 +371,7 @@ exports.googleAuthSuccess = asyncHandler(async (req, res, next) => {
         const refreshToken = req.user.generateRefreshToken();
         const tokenHash = req.user.hashToken(refreshToken);
 
-        const userWithTokens = await User.findById(req.user._id).select("+refreshTokens");
+        const userWithTokens = await User.findById(req.user._id).select("+refreshTokens").setOptions({ includeAllStates: true });
         if (!userWithTokens) {
             logger.warn(`googleAuthSuccess: User record not found for ID: ${req.user._id}`);
             return res.redirect(stateObj.platform === 'mobile' ? 'zuvomobile://auth/login?error=user_not_found' : `${process.env.CORS_ORIGIN}/auth/login?error=user_not_found`);
