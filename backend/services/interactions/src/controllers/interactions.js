@@ -72,23 +72,40 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
     const userVotedKey = `post:${postId}:user:${userId}:voted`;
 
     const existingVote = await redisClient.get(userVotedKey);
+    let likesDelta = 0;
 
     if (existingVote === action) {
         // Undo the same vote (toggle off)
-        if (action === "like") await redisClient.decr(likeKey);
+        if (action === "like") {
+            await redisClient.decr(likeKey);
+            likesDelta = -1;
+        }
         else await redisClient.decr(dislikeKey);
         await redisClient.del(userVotedKey);
+        await MessageBus.publish("zuvo_tasks", {
+            type: "LIKE_TOGGLE",
+            postId,
+            action,
+            userId,
+            likesDelta
+        });
         return res.status(200).json({ success: true, message: `${action} removed` });
     }
 
     if (existingVote) {
         // Switching vote: undo old vote first
-        if (existingVote === "like") await redisClient.decr(likeKey);
+        if (existingVote === "like") {
+            await redisClient.decr(likeKey);
+            likesDelta -= 1;
+        }
         else await redisClient.decr(dislikeKey);
     }
 
     // Apply new vote
-    if (action === "like") await redisClient.incr(likeKey);
+    if (action === "like") {
+        await redisClient.incr(likeKey);
+        likesDelta += 1;
+    }
     else await redisClient.incr(dislikeKey);
     await redisClient.set(userVotedKey, action);
 
@@ -102,7 +119,8 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
         type: "LIKE_TOGGLE",
         postId,
         action, // 'like' or 'dislike'
-        userId
+        userId,
+        likesDelta
     });
 
     res.status(200).json({

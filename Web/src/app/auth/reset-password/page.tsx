@@ -137,7 +137,7 @@ function ResetPasswordForm() {
                     ))}
                 </div>
                 <p className="text-xs text-slate-500 text-center">
-                    Didn't get one?{" "}
+                    Didn&apos;t get one?{" "}
                     <Link href="/auth/forgot-password" className="text-primary hover:underline">
                         Request a new OTP
                     </Link>

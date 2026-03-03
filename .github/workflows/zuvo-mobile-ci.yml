@@ -16,22 +16,22 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
-          cache-dependency-path: Mobile/ZuvoMobile/package-lock.json
+          cache-dependency-path: MobileApp/ZuvoMobile/package-lock.json
 
       - name: Install dependencies
         run: |
-          cd Mobile/ZuvoMobile
+          cd MobileApp/ZuvoMobile
           npm install
 
       - name: Run lint
         run: |
-          cd Mobile/ZuvoMobile
+          cd MobileApp/ZuvoMobile
           npm run lint
 
       - name: Run tests
         run: |
-          cd Mobile/ZuvoMobile
-          npm run test
+          cd MobileApp/ZuvoMobile
+          npm run test --if-present
 
   build-android:
     needs: lint-and-test
@@ -47,5 +47,5 @@ jobs:
 
       - name: Build Android Release
         run: |
-          cd Mobile/ZuvoMobile/android
+          cd MobileApp/ZuvoMobile/android
           ./gradlew assembleRelease

@@ -3,6 +3,14 @@ const crypto = require("crypto");
 const { asyncHandler, MessageBus, logger, models } = require("@zuvo/shared");
 const User = models.User();
 
+const buildRefreshCookieOptions = () => ({
+    expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+    path: "/"
+});
+
 /**
  * @desc    Generate tokens and send in response
  */
@@ -31,17 +39,9 @@ const sendTokenResponse = async (user, statusCode, res, req) => {
 
     await userWithTokens.save({ validateBeforeSave: false });
 
-    const cookieOptions = {
-        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-        httpOnly: true,
-        secure: false, // Force false for local dev debugging
-        sameSite: "lax", // Force lax for local dev debugging
-        path: "/"
-    };
-
     res
         .status(statusCode)
-        .cookie("refreshToken", refreshToken, cookieOptions)
+        .cookie("refreshToken", refreshToken, buildRefreshCookieOptions())
         .json({
             success: true,
             accessToken,
@@ -177,58 +177,11 @@ exports.logout = asyncHandler(async (req, res, next) => {
     }
 
     res.cookie("refreshToken", "none", {
+        ...buildRefreshCookieOptions(),
         expires: new Date(Date.now() + 10 * 1000),
-        httpOnly: true,
-        secure: false,
-        sameSite: "lax",
-        path: "/"
     });
 
     res.status(200).json({ success: true, message: "Logged out successfully" });
-});
-
-// @route   DELETE /api/v1/auth/account
-exports.deleteAccount = asyncHandler(async (req, res) => {
-    try {
-        const user = await User.findById(req.user._id);
-        if (!user) {
-            return res.status(404).json({ success: false, message: "User not found" });
-        }
-
-        // 1. Publish GDPR event for data scrubbing
-        await MessageBus.publish("zuvo_tasks", {
-            type: "GDPR_USER_DELETE",
-            userId: user._id
-        });
-
-        // 2. Immediate Session Death
-        // Wipe refresh tokens from DB
-        user.refreshTokens = [];
-
-        // 3. Update State machine via plugin method
-        await user.scheduleDeletion();
-
-        // 4. Publish Session Invalidation event for Redis/Auth-cache services
-        await MessageBus.publish("zuvo_tasks", {
-            type: "USER_SESSIONS_INVALIDATED",
-            userId: user._id
-        });
-
-        // 5. Clear cookie
-        res.clearCookie("refreshToken", {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict"
-        });
-
-        res.status(200).json({
-            success: true,
-            message: "Account scheduled for deletion. You have 30 days to reactivate."
-        });
-    } catch (err) {
-        console.error("Delete account error:", err);
-        res.status(500).json({ success: false, message: "Server error" });
-    }
 });
 
 // @route   POST /api/v1/auth/refresh-token
@@ -267,11 +220,8 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
             await user.save({ validateBeforeSave: false });
 
             res.cookie("refreshToken", "none", {
+                ...buildRefreshCookieOptions(),
                 expires: new Date(Date.now() + 10 * 1000),
-                httpOnly: true,
-                secure: false,
-                sameSite: "lax",
-                path: "/"
             });
             return res.status(401).json({ success: false, message: "Security lockout triggered" });
         }
@@ -382,23 +332,17 @@ exports.googleAuthSuccess = asyncHandler(async (req, res, next) => {
         logger.info(`googleAuthSuccess: Tokens generated and saved for user: ${req.user._id}`);
 
         // For Web
-        res.cookie("refreshToken", refreshToken, {
-            expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            httpOnly: true,
-            secure: false,
-            sameSite: "lax",
-            path: "/"
-        });
+        res.cookie("refreshToken", refreshToken, buildRefreshCookieOptions());
 
         if (stateObj.platform === 'mobile') {
             const baseUri = stateObj.redirect_uri || 'zuvomobile://auth/callback';
             const redirectUrl = `${baseUri}${baseUri.includes('?') ? '&' : '?'}token=${accessToken}`;
-            logger.info(`googleAuthSuccess: REDIRECTING MOBILE USER TO: ${redirectUrl}`);
+            logger.info("googleAuthSuccess: Redirecting mobile user to callback URI");
             return res.redirect(redirectUrl);
         }
 
         logger.info(`googleAuthSuccess: Redirecting web user to CORS_ORIGIN callback`);
-        res.redirect(`${process.env.CORS_ORIGIN}/auth/callback?token=${accessToken}`);
+        res.redirect(`${process.env.CORS_ORIGIN}/auth/callback`);
     } catch (error) {
         logger.error(`googleAuthSuccess Error: ${error.message}`, error);
         const errorRedirect = stateObj.platform === 'mobile'
@@ -418,9 +362,15 @@ exports.getMe = asyncHandler(async (req, res, next) => {
 // @route   PUT /api/v1/auth/profile
 exports.updateProfile = asyncHandler(async (req, res, next) => {
     logger.info(`updateProfile: Attempting update for user: ${req.user.id || req.user._id}`);
-    logger.info(`updateProfile: Body: ${JSON.stringify(req.body)}`);
+    const allowedFields = ["name", "bio", "avatar", "banner", "location", "website", "isPrivate", "socials", "username", "hasSetUsername"];
+    const updates = {};
+    for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+            updates[field] = req.body[field];
+        }
+    }
 
-    const user = await User.findByIdAndUpdate(req.user.id || req.user._id, req.body, {
+    const user = await User.findByIdAndUpdate(req.user.id || req.user._id, updates, {
         new: true,
         runValidators: true
     });
@@ -509,11 +459,8 @@ exports.deleteAccount = asyncHandler(async (req, res, next) => {
 
     // 3. Clear tokens
     res.cookie("refreshToken", "none", {
+        ...buildRefreshCookieOptions(),
         expires: new Date(Date.now() + 10 * 1000),
-        httpOnly: true,
-        secure: false,
-        sameSite: "lax",
-        path: "/"
     });
 
     res.status(200).json({

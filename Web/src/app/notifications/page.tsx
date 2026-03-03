@@ -228,7 +228,7 @@ export default function NotificationsPage() {
                     <div className="p-12 text-center">
                         <BellRing className="w-12 h-12 text-slate-600 mx-auto mb-4 opacity-20" />
                         <p className="text-slate-400 font-medium">No notifications yet</p>
-                        <p className="text-slate-500 text-sm mt-1">When people interact with you, you'll see it here.</p>
+                        <p className="text-slate-500 text-sm mt-1">When people interact with you, you&apos;ll see it here.</p>
                     </div>
                 )}
             </div>
@@ -236,7 +236,7 @@ export default function NotificationsPage() {
             {/* End of list */}
             {notifications.length > 0 && (
                 <div className="text-center py-8 text-slate-500 text-sm">
-                    You're all caught up!
+                    You&apos;re all caught up!
                 </div>
             )}
         </div>

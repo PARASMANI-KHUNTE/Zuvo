@@ -67,7 +67,7 @@ function SearchResults() {
             <div className="space-y-6 px-4">
                 <div className="flex items-center justify-between">
                     <h1 className="text-3xl font-bold text-white">
-                        Results for <span className="text-primary italic">"{query}"</span>
+                        Results for <span className="text-primary italic">&quot;{query}&quot;</span>
                     </h1>
                     <button className="glass-panel p-2 rounded-xl text-slate-400 hover:text-white transition-all flex items-center gap-2 text-sm font-bold">
                         <Filter className="w-4 h-4" /> Filter

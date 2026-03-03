@@ -28,45 +28,47 @@ export default function AuthCallbackPage() {
             return;
         }
 
-        if (token) {
-            processed.current = true;
+        processed.current = true;
 
-            const handleLogin = async () => {
-                try {
-                    setStatus("loading");
-                    const response = await apiClient.get("/auth/me", {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
+        const handleLogin = async () => {
+            try {
+                setStatus("loading");
 
-                    if (response.data?.success && response.data?.data) {
-                        const userData = response.data.data;
-                        setStatus("success");
-                        setMessage(`Welcome back, ${userData.name || "User"}!`);
-
-                        // Set auth state
-                        login(userData, token);
-
-                        // Immediate redirect backup
-                        setTimeout(() => {
-                            window.location.href = userData.hasSetUsername === false ? "/auth/onboarding" : "/";
-                        }, 500);
-
-                        // Redirection is also handled by the useEffect below
-                    } else {
-                        throw new Error("Profile fetch failed");
-                    }
-                } catch (err) {
-                    console.error("OAuth Callback Error:", err);
-                    setStatus("error");
-                    setMessage("Authentication failed. Please try logging in again.");
-                    setTimeout(() => router.push("/auth/login?error=callback_error"), 2000);
+                let activeToken = token;
+                if (!activeToken) {
+                    const refreshRes = await apiClient.post("/auth/refresh-token");
+                    activeToken = refreshRes.data?.accessToken;
                 }
-            };
 
-            handleLogin();
-        } else {
-            router.push("/auth/login");
-        }
+                if (!activeToken) {
+                    throw new Error("Missing access token");
+                }
+
+                const response = await apiClient.get("/auth/me", {
+                    headers: { Authorization: `Bearer ${activeToken}` }
+                });
+
+                if (response.data?.success && response.data?.data) {
+                    const userData = response.data.data;
+                    setStatus("success");
+                    setMessage(`Welcome back, ${userData.name || "User"}!`);
+                    login(userData, activeToken as string);
+
+                    setTimeout(() => {
+                        window.location.href = userData.hasSetUsername === false ? "/auth/onboarding" : "/";
+                    }, 500);
+                } else {
+                    throw new Error("Profile fetch failed");
+                }
+            } catch (err) {
+                console.error("OAuth Callback Error:", err);
+                setStatus("error");
+                setMessage("Authentication failed. Please try logging in again.");
+                setTimeout(() => router.push("/auth/login?error=callback_error"), 2000);
+            }
+        };
+
+        handleLogin();
     }, [searchParams, login, router]);
 
     // Separate effect for redirection to ensure it happens after state updates

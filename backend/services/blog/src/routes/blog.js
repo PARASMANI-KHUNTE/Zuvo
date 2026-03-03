@@ -46,6 +46,9 @@ router.route("/")
     .post(authenticate, createPost)
     .get(getPosts);
 
+// Internal route
+router.get("/internal/:id", getInternalPost);
+
 /**
  * @openapi
  * /api/v1/blogs/{id}:
@@ -91,9 +94,6 @@ router.route("/:id")
     .get(getPost)
     .put(authenticate, updatePost)
     .delete(authenticate, deletePost);
-
-// Internal route
-router.get("/internal/:id", getInternalPost);
 
 module.exports = router;
 

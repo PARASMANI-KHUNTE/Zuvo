@@ -171,11 +171,12 @@ const handleTask = async (task) => {
             try {
                 const { models } = require("@zuvo/shared");
                 const Post = models.Post();
-                // Increment/Decrement logic based on action
-                const increment = task.action === "like" ? 1 : -1;
-                await Post.findByIdAndUpdate(task.postId, {
-                    $inc: { likesCount: increment }
-                });
+                const likesDelta = Number(task.likesDelta) || 0;
+                if (likesDelta !== 0) {
+                    await Post.findByIdAndUpdate(task.postId, {
+                        $inc: { likesCount: likesDelta }
+                    });
+                }
             } catch (err) {
                 logger.error("Failed to sync like to DB", err);
                 throw err;

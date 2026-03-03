@@ -37,14 +37,28 @@ exports.getConversations = asyncHandler(async (req, res) => {
  * FIX D1: Added pagination — oldest-first with page/limit
  */
 exports.getMessages = asyncHandler(async (req, res) => {
+    const currentUserId = req.user.id || req.user._id;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
+    const conversationId = req.params.conversationId;
 
-    const total = await Message.countDocuments({ conversationId: req.params.conversationId });
+    const conversation = await Conversation.findById(conversationId).select("participants");
+    if (!conversation) {
+        return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+
+    const isParticipant = conversation.participants.some(
+        participantId => participantId.toString() === currentUserId.toString()
+    );
+    if (!isParticipant) {
+        return res.status(403).json({ success: false, message: "Not authorized to access this conversation" });
+    }
+
+    const total = await Message.countDocuments({ conversationId });
 
     const messages = await Message.find({
-        conversationId: req.params.conversationId
+        conversationId
     })
         .sort({ createdAt: 1 })
         .skip(skip)
@@ -93,19 +107,20 @@ exports.createGroup = asyncHandler(async (req, res) => {
  */
 exports.getOrCreateConversation = asyncHandler(async (req, res) => {
     const recipientId = req.params.userId;
+    const currentUserId = req.user.id || req.user._id;
 
-    if (recipientId === (req.user.id || req.user._id)) {
+    if (recipientId.toString() === currentUserId.toString()) {
         return res.status(400).json({ success: false, message: "Cannot start a conversation with yourself" });
     }
 
     let conversation = await Conversation.findOne({
         isGroup: false,
-        participants: { $all: [req.user.id || req.user._id, recipientId] }
+        participants: { $all: [currentUserId, recipientId] }
     });
 
     if (!conversation) {
         conversation = await Conversation.create({
-            participants: [req.user.id || req.user._id, recipientId],
+            participants: [currentUserId, recipientId],
             isGroup: false
         });
     }
@@ -125,6 +140,7 @@ exports.getOrCreateConversation = asyncHandler(async (req, res) => {
  */
 exports.sendMessage = asyncHandler(async (req, res) => {
     const { conversationId, content, attachments, recipientId } = req.body;
+    const currentUserId = req.user.id || req.user._id;
 
     if (!content && (!attachments || attachments.length === 0)) {
         return res.status(400).json({ success: false, message: "Message must have content or attachments" });
@@ -136,12 +152,12 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     if (!targetConversationId && recipientId) {
         let conversation = await Conversation.findOne({
             isGroup: false,
-            participants: { $all: [req.user.id || req.user._id, recipientId] }
+            participants: { $all: [currentUserId, recipientId] }
         });
 
         if (!conversation) {
             conversation = await Conversation.create({
-                participants: [req.user.id || req.user._id, recipientId],
+                participants: [currentUserId, recipientId],
                 isGroup: false
             });
         }
@@ -152,9 +168,20 @@ exports.sendMessage = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: "conversationId or recipientId is required" });
     }
 
+    const conversation = await Conversation.findById(targetConversationId).select("participants");
+    if (!conversation) {
+        return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+    const isParticipant = conversation.participants.some(
+        participantId => participantId.toString() === currentUserId.toString()
+    );
+    if (!isParticipant) {
+        return res.status(403).json({ success: false, message: "Not authorized to send messages in this conversation" });
+    }
+
     const message = await Message.create({
         conversationId: targetConversationId,
-        sender: req.user.id || req.user._id,
+        sender: currentUserId,
         content,
         attachments
     });
