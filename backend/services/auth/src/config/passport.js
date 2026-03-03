@@ -13,17 +13,30 @@ passport.use(new GoogleStrategy({
     proxy: true
 }, async (accessToken, refreshToken, profile, done) => {
     try {
-        // 1. Check if user already exists
+        // 1. Check if user already exists (Include all states to allow reactivation)
         let user = await User.findOne({
             $or: [
                 { googleId: profile.id },
                 { email: profile.emails[0].value }
             ]
-        });
+        }).setOptions({ includeAllStates: true });
 
         if (user) {
-            // Update googleId if they previously signed up via email
+            // Permanently deleted check
+            if (user.accountStatus === "deleted") {
+                return done(null, false, { message: "Account has been permanently deleted" });
+            }
+
             let updated = false;
+
+            // Handle reactivation/state transition
+            if (user.accountStatus === "deactivated" || user.accountStatus === "pending_deletion") {
+                user.accountStatus = "active";
+                user.deletionScheduledAt = null;
+                updated = true;
+            }
+
+            // Update googleId if they previously signed up via email
             if (!user.googleId) {
                 user.googleId = profile.id;
                 user.isVerified = true;

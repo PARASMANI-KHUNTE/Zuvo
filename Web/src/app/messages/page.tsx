@@ -77,7 +77,8 @@ export default function MessagesPage() {
     };
 
     const getOtherParticipant = (participants: any[]) => {
-        return participants.find(p => (p.id || p._id) !== (user?.id || user?._id)) || participants[0];
+        if (!participants || participants.length === 0) return { name: "Unknown", avatar: "" };
+        return participants.find(p => (p?._id || p?.id) !== (user?.id || user?._id)) || participants[0];
     };
 
     return (

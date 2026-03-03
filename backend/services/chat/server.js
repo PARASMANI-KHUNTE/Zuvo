@@ -2,7 +2,7 @@ const dotenv = require("dotenv");
 dotenv.config();
 
 const express = require("express");
-const { logger, requestTrace, connectDB, metrics, faultInjection, errorHandler, initTracing, HealthCheck } = require("@zuvo/shared");
+const { logger, requestTrace, connectDB, connectRedis, metrics, faultInjection, errorHandler, initTracing, HealthCheck } = require("@zuvo/shared");
 const chatRoutes = require("./src/routes/chat");
 
 process.env.SERVICE_NAME = "chat-service";
@@ -35,6 +35,7 @@ const PORT = process.env.PORT || 8007;
 
 const start = async () => {
     await connectDB();
+    await connectRedis();
     app.listen(PORT, () => {
         logger.info(`Chat service is running on port ${PORT}`);
     });

@@ -133,7 +133,7 @@ export default function CreatePost({ onSuccess }: CreatePostProps) {
                         <img src={userAvatar} alt="user" className="w-full h-full object-cover" />
                     </div>
                     <div className="w-full bg-white/5 border border-white/5 rounded-full px-6 py-2.5 text-slate-500 text-sm hover:bg-white/10 transition-all">
-                        What's on your mind, {user?.name?.split(' ')[0]}?
+                        What&apos;s on your mind, {user?.name?.split(" ")[0]}?
                     </div>
                 </div>
             ) : (

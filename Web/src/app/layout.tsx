@@ -5,6 +5,7 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { ToastProvider } from "@/context/ToastContext";
 import { ConfirmationProvider } from "@/context/ConfirmationContext";
+import { SocketProvider } from "@/context/SocketContext";
 import LayoutWrapper from "./components/LayoutWrapper";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -26,7 +27,9 @@ export default function RootLayout({
         <AuthProvider>
           <ConfirmationProvider>
             <ToastProvider>
-              <LayoutWrapper>{children}</LayoutWrapper>
+              <SocketProvider>
+                <LayoutWrapper>{children}</LayoutWrapper>
+              </SocketProvider>
             </ToastProvider>
           </ConfirmationProvider>
         </AuthProvider>

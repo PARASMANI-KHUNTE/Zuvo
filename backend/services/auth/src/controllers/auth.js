@@ -3,6 +3,14 @@ const crypto = require("crypto");
 const { asyncHandler, MessageBus, logger, models } = require("@zuvo/shared");
 const User = models.User();
 
+const buildRefreshCookieOptions = () => ({
+    expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+    path: "/"
+});
+
 /**
  * @desc    Generate tokens and send in response
  */
@@ -31,17 +39,9 @@ const sendTokenResponse = async (user, statusCode, res, req) => {
 
     await userWithTokens.save({ validateBeforeSave: false });
 
-    const cookieOptions = {
-        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-        httpOnly: true,
-        secure: false, // Force false for local dev debugging
-        sameSite: "lax", // Force lax for local dev debugging
-        path: "/"
-    };
-
     res
         .status(statusCode)
-        .cookie("refreshToken", refreshToken, cookieOptions)
+        .cookie("refreshToken", refreshToken, buildRefreshCookieOptions())
         .json({
             success: true,
             accessToken,
@@ -131,14 +131,27 @@ exports.login = asyncHandler(async (req, res, next) => {
         return res.status(400).json({ success: false, message: "Please provide an email and password" });
     }
 
-    const user = await User.findOne({ email }).select("+password");
+    // Include all states during login to allow reactivation
+    const user = await User.findOne({ email }).select("+password").setOptions({ includeAllStates: true });
     if (!user) {
         return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
+
+    // Check if account is deleted permanently
+    if (user.accountStatus === "deleted") {
+        return res.status(403).json({ success: false, message: "Account has been permanently deleted" });
     }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
         return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
+
+    // Handle reactivation/state transition
+    if (user.accountStatus === "deactivated" || user.accountStatus === "pending_deletion") {
+        user.accountStatus = "active";
+        user.deletionScheduledAt = null;
+        await user.save();
     }
 
     // if (process.env.NODE_ENV !== "development" && !user.isVerified) {
@@ -164,11 +177,8 @@ exports.logout = asyncHandler(async (req, res, next) => {
     }
 
     res.cookie("refreshToken", "none", {
+        ...buildRefreshCookieOptions(),
         expires: new Date(Date.now() + 10 * 1000),
-        httpOnly: true,
-        secure: false,
-        sameSite: "lax",
-        path: "/"
     });
 
     res.status(200).json({ success: true, message: "Logged out successfully" });
@@ -210,11 +220,8 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
             await user.save({ validateBeforeSave: false });
 
             res.cookie("refreshToken", "none", {
+                ...buildRefreshCookieOptions(),
                 expires: new Date(Date.now() + 10 * 1000),
-                httpOnly: true,
-                secure: false,
-                sameSite: "lax",
-                path: "/"
             });
             return res.status(401).json({ success: false, message: "Security lockout triggered" });
         }
@@ -314,7 +321,7 @@ exports.googleAuthSuccess = asyncHandler(async (req, res, next) => {
         const refreshToken = req.user.generateRefreshToken();
         const tokenHash = req.user.hashToken(refreshToken);
 
-        const userWithTokens = await User.findById(req.user._id).select("+refreshTokens");
+        const userWithTokens = await User.findById(req.user._id).select("+refreshTokens").setOptions({ includeAllStates: true });
         if (!userWithTokens) {
             logger.warn(`googleAuthSuccess: User record not found for ID: ${req.user._id}`);
             return res.redirect(stateObj.platform === 'mobile' ? 'zuvomobile://auth/login?error=user_not_found' : `${process.env.CORS_ORIGIN}/auth/login?error=user_not_found`);
@@ -325,23 +332,17 @@ exports.googleAuthSuccess = asyncHandler(async (req, res, next) => {
         logger.info(`googleAuthSuccess: Tokens generated and saved for user: ${req.user._id}`);
 
         // For Web
-        res.cookie("refreshToken", refreshToken, {
-            expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            httpOnly: true,
-            secure: false,
-            sameSite: "lax",
-            path: "/"
-        });
+        res.cookie("refreshToken", refreshToken, buildRefreshCookieOptions());
 
         if (stateObj.platform === 'mobile') {
             const baseUri = stateObj.redirect_uri || 'zuvomobile://auth/callback';
             const redirectUrl = `${baseUri}${baseUri.includes('?') ? '&' : '?'}token=${accessToken}`;
-            logger.info(`googleAuthSuccess: REDIRECTING MOBILE USER TO: ${redirectUrl}`);
+            logger.info("googleAuthSuccess: Redirecting mobile user to callback URI");
             return res.redirect(redirectUrl);
         }
 
         logger.info(`googleAuthSuccess: Redirecting web user to CORS_ORIGIN callback`);
-        res.redirect(`${process.env.CORS_ORIGIN}/auth/callback?token=${accessToken}`);
+        res.redirect(`${process.env.CORS_ORIGIN}/auth/callback`);
     } catch (error) {
         logger.error(`googleAuthSuccess Error: ${error.message}`, error);
         const errorRedirect = stateObj.platform === 'mobile'
@@ -361,9 +362,15 @@ exports.getMe = asyncHandler(async (req, res, next) => {
 // @route   PUT /api/v1/auth/profile
 exports.updateProfile = asyncHandler(async (req, res, next) => {
     logger.info(`updateProfile: Attempting update for user: ${req.user.id || req.user._id}`);
-    logger.info(`updateProfile: Body: ${JSON.stringify(req.body)}`);
+    const allowedFields = ["name", "bio", "avatar", "banner", "location", "website", "isPrivate", "socials", "username", "hasSetUsername"];
+    const updates = {};
+    for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+            updates[field] = req.body[field];
+        }
+    }
 
-    const user = await User.findByIdAndUpdate(req.user.id || req.user._id, req.body, {
+    const user = await User.findByIdAndUpdate(req.user.id || req.user._id, updates, {
         new: true,
         runValidators: true
     });
@@ -421,4 +428,43 @@ exports.changePassword = asyncHandler(async (req, res, next) => {
     user.password = newPassword;
     await user.save();
     res.status(200).json({ success: true, message: 'Password changed' });
+});
+
+/**
+ * @desc    Delete user account (Soft Delete with GDPR event)
+ * @route   DELETE /api/v1/auth/profile
+ * @access  Private
+ */
+exports.deleteAccount = asyncHandler(async (req, res, next) => {
+    const userId = req.user.id || req.user._id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // 1. Publish GDPR deletion event first
+    try {
+        await MessageBus.publish("zuvo_tasks", {
+            type: "GDPR_USER_DELETE",
+            userId: userId
+        });
+    } catch (err) {
+        logger.error(`Failed to publish GDPR delete event for user ${userId}: ${err.message}`);
+        return res.status(500).json({ success: false, message: "Failed to initiate account deletion. Please try again." });
+    }
+
+    // 2. Soft delete the user
+    await user.softDelete();
+
+    // 3. Clear tokens
+    res.cookie("refreshToken", "none", {
+        ...buildRefreshCookieOptions(),
+        expires: new Date(Date.now() + 10 * 1000),
+    });
+
+    res.status(200).json({
+        success: true,
+        message: "Account marked for deletion. Data will be scrubbed within 30 days."
+    });
 });

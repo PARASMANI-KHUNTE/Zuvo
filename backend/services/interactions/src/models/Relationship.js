@@ -10,6 +10,12 @@ const relationshipSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         required: true,
         index: true
+    },
+    status: {
+        type: String,
+        enum: ["following", "requested", "blocked"],
+        default: "following",
+        index: true
     }
 }, {
     timestamps: true

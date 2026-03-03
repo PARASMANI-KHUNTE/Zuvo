@@ -24,20 +24,28 @@ process.env.SERVICE_NAME = "gateway";
 
 const app = express();
 const server = http.createServer(app);
+const enableSecurityMiddleware = process.env.ENABLE_SECURITY_MIDDLEWARE === "true";
+const enableVersioning = process.env.ENABLE_VERSIONING === "true";
+const enableContractValidation = process.env.ENABLE_CONTRACT_VALIDATION === "true";
+const enableFaultInjection = process.env.ENABLE_FAULT_INJECTION === "true";
 
 // Global Security Hardening (Zero-Trust)
-// app.use((req, res, next) => { logger.info(`Gateway: Entering Security [${req.path}]`); next(); });
-// app.use(security);
+if (enableSecurityMiddleware) {
+    app.use(security);
+}
 
 // Trace requests
-// app.use((req, res, next) => { logger.info(`Gateway: Entering Versioning`); next(); });
-// app.use(versioning("v1"));
+if (enableVersioning) {
+    app.use(versioning("v1"));
+}
 app.use((req, res, next) => { logger.info(`Gateway: Entering Metrics`); next(); });
 app.use(metrics.metricsMiddleware("gateway"));
-// app.use((req, res, next) => { logger.info(`Gateway: Entering FaultInjection`); next(); });
-// app.use(faultInjection);
-// app.use((req, res, next) => { logger.info(`Gateway: Entering ContractValidator`); next(); });
-// app.use(contractValidator);
+if (enableFaultInjection) {
+    app.use(faultInjection);
+}
+if (enableContractValidation) {
+    app.use(contractValidator);
+}
 
 // API Documentation
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
@@ -58,7 +66,7 @@ app.use(helmet({
 }));
 app.use(morgan("dev"));
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || "*",
+    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
     credentials: true
 }));
 

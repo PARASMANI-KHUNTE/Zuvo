@@ -44,6 +44,7 @@ app.get("/api/v1/notifications", authenticate, async (req, res) => {
 
         const data = notifications.map(n => {
             const obj = n.toObject();
+            obj.type = (obj.type || "system").toUpperCase();
             obj.isRead = obj.read; // normalize for frontend
             return obj;
         });
@@ -192,7 +193,11 @@ const startServer = async () => {
         try {
             const data = JSON.parse(message);
             // data = { userId, type, content }
-            logger.info(`Relaying notification to user ${data.userId} via Socket.io: ${data.notificationType || data.type}`);
+            const normalizedType = (data.type || data.notificationType || "system").toUpperCase();
+            data.type = normalizedType;
+            data.notificationType = normalizedType;
+
+            logger.info(`Relaying notification to user ${data.userId} via Socket.io: ${normalizedType}`);
             io.to(`user:${data.userId}`).emit("notification", data);
         } catch (err) {
             logger.error("Failed to parse notification message", err);
