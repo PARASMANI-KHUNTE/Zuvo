@@ -143,7 +143,7 @@ exports.toggleFollow = asyncHandler(async (req, res, next) => {
 
     // 1. Fetch target user to check privacy and existence
     const targetUser = await internalServices.getInternalUser(userId);
-    if (!targetUser || targetUser.isDeleted) {
+    if (!targetUser || (targetUser.accountStatus && targetUser.accountStatus !== "active")) {
         return res.status(404).json({ success: false, message: "User not found" });
     }
 

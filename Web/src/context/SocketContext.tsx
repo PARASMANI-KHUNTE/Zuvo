@@ -72,15 +72,19 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         let s: Socket | null = null;
 
-        if (accessToken && user && !user.isDeleted) {
-            s = connectSocket(accessToken);
-        } else {
+        if (!accessToken || (user && user.accountStatus !== "active")) {
             if (socket) {
-                socket.close();
+                console.log("Cleaning up socket due to logout/non-active status");
+                socket.removeAllListeners();
+                socket.disconnect();
                 setSocket(null);
                 setIsConnected(false);
             }
+            return;
         }
+
+        // If we reach here, accessToken is valid and user is active
+        s = connectSocket(accessToken);
 
         return () => {
             if (s) {
@@ -88,7 +92,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
                 s.close();
             }
         };
-    }, [accessToken, user, connectSocket]);
+    }, [accessToken, user, connectSocket, socket]); // Added 'socket' to dependencies for cleanup logic
 
     return (
         <SocketContext.Provider value={{ socket, isConnected }}>

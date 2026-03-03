@@ -22,7 +22,7 @@ interface User {
     role?: string;
     isVerified?: boolean;
     hasSetUsername?: boolean;
-    isDeleted?: boolean;
+    accountStatus?: "active" | "deactivated" | "pending_deletion" | "deleted" | string;
 }
 
 interface AuthContextType {

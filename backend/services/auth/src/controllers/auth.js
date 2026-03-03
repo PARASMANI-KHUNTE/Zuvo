@@ -205,10 +205,8 @@ exports.deleteAccount = asyncHandler(async (req, res) => {
         // Wipe refresh tokens from DB
         user.refreshTokens = [];
 
-        // 3. Update State machine
-        user.accountStatus = "pending_deletion";
-        user.deletionScheduledAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-        await user.save({ validateBeforeSave: false });
+        // 3. Update State machine via plugin method
+        await user.scheduleDeletion();
 
         // 4. Publish Session Invalidation event for Redis/Auth-cache services
         await MessageBus.publish("zuvo_tasks", {

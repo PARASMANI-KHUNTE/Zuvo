@@ -3,41 +3,61 @@
  * Standardizes soft deletion across all collections
  */
 module.exports = function softDeletePlugin(schema) {
-    schema.add({
-        isDeleted: {
-            type: Boolean,
-            default: false,
-            index: true
-        },
-        deletedAt: {
-            type: Date,
-            default: null
-        }
-    });
+    const isIdentityModel = !!schema.path("accountStatus");
 
-    // Middleware to exclude non-active documents by default
-    schema.pre(/^find/, function () {
-        const query = this.getQuery();
+    if (isIdentityModel) {
+        // Identity Model logic (State machine based)
+        schema.pre(/^find/, function () {
+            const query = this.getQuery();
+            if (query.includeAllStates) {
+                delete query.includeAllStates;
+                return;
+            }
+            this.where({ accountStatus: "active" });
+        });
 
-        // If query explicitly wants to bypass filters (e.g., for login or admin)
-        if (query.includeAllStates) {
-            delete query.includeAllStates;
-            return;
-        }
+        schema.methods.deactivate = async function () {
+            this.accountStatus = "deactivated";
+            return this.save();
+        };
 
-        // Only include active accounts by default
-        this.where({ accountStatus: "active" });
-    });
+        schema.methods.scheduleDeletion = async function () {
+            this.accountStatus = "pending_deletion";
+            this.deletionScheduledAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+            return this.save();
+        };
 
-    schema.methods.softDelete = async function () {
-        this.isDeleted = true;
-        this.deletedAt = new Date();
-        return this.save();
-    };
+        schema.methods.activate = async function () {
+            this.accountStatus = "active";
+            this.deletionScheduledAt = null;
+            return this.save();
+        };
+    } else {
+        // Content Model logic (Boolean based)
+        schema.add({
+            isDeleted: { type: Boolean, default: false, index: true },
+            deletedAt: { type: Date, default: null }
+        });
 
-    schema.methods.restore = async function () {
-        this.isDeleted = false;
-        this.deletedAt = null;
-        return this.save();
-    };
+        schema.pre(/^find/, function () {
+            const query = this.getQuery();
+            if (query.includeDeleted) {
+                delete query.includeDeleted;
+                return;
+            }
+            this.where({ isDeleted: false });
+        });
+
+        schema.methods.softDelete = async function () {
+            this.isDeleted = true;
+            this.deletedAt = new Date();
+            return this.save();
+        };
+
+        schema.methods.restore = async function () {
+            this.isDeleted = false;
+            this.deletedAt = null;
+            return this.save();
+        };
+    }
 };
