@@ -9,7 +9,7 @@ import { Loader2 } from "lucide-react";
 export default function AuthCallbackPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { login } = useAuth();
+    const { login, user } = useAuth();
     const processed = useRef(false);
     const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
     const [message, setMessage] = useState("Completing authentication...");
@@ -34,49 +34,49 @@ export default function AuthCallbackPage() {
             const handleLogin = async () => {
                 try {
                     setStatus("loading");
-
-                    // Fetch user info using the new token
                     const response = await apiClient.get("/auth/me", {
-                        headers: {
-                            Authorization: `Bearer ${token}`
-                        }
+                        headers: { Authorization: `Bearer ${token}` }
                     });
 
-
-                    if (response.data && response.data.success && response.data.data) {
+                    if (response.data?.success && response.data?.data) {
                         const userData = response.data.data;
                         setStatus("success");
                         setMessage(`Welcome back, ${userData.name || "User"}!`);
+
+                        // Set auth state
                         login(userData, token);
 
-                        // Small delay to let context update before redirecting
+                        // Immediate redirect backup
                         setTimeout(() => {
-                            if (userData.hasSetUsername === false) {
-                                router.push("/auth/onboarding");
-                            } else {
-                                window.location.href = "/";
-                            }
-                        }, 1500);
+                            window.location.href = userData.hasSetUsername === false ? "/auth/onboarding" : "/";
+                        }, 500);
+
+                        // Redirection is also handled by the useEffect below
                     } else {
-                        console.error("OAuth Callback: Profile fetch failed:", response.data);
-                        setStatus("error");
-                        setMessage("Failed to fetch user profile.");
-                        router.push("/auth/login?error=fetch_user_failed");
+                        throw new Error("Profile fetch failed");
                     }
                 } catch (err) {
-                    console.error("OAuth Callback: Unexpected error during profile fetch:", err);
+                    console.error("OAuth Callback Error:", err);
                     setStatus("error");
-                    setMessage("An unexpected error occurred during login.");
-                    router.push("/auth/login?error=callback_error");
+                    setMessage("Authentication failed. Please try logging in again.");
+                    setTimeout(() => router.push("/auth/login?error=callback_error"), 2000);
                 }
             };
 
             handleLogin();
         } else {
-            console.warn("OAuth Callback: No token or error found in URL");
             router.push("/auth/login");
         }
     }, [searchParams, login, router]);
+
+    // Separate effect for redirection to ensure it happens after state updates
+    useEffect(() => {
+        if (status === "success" && user) {
+            // Hard redirect to clear any potential SPA state hangs
+            const target = user.hasSetUsername === false ? "/auth/onboarding" : "/";
+            window.location.href = target;
+        }
+    }, [status, user]);
 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-[#0A0A0B] text-white p-4">

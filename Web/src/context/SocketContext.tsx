@@ -20,7 +20,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const { toast } = useToast();
     const [socket, setSocket] = useState<Socket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
-    const connectionVersion = useRef(0);
+    const connectionVersion = React.useRef(0);
 
     const connectSocket = useCallback((token: string) => {
         const version = ++connectionVersion.current;
@@ -92,7 +92,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
                 s.close();
             }
         };
-    }, [accessToken, user, connectSocket, socket]); // Added 'socket' to dependencies for cleanup logic
+    }, [accessToken, user, connectSocket]); // Removed 'socket' to prevent infinite loop
 
     return (
         <SocketContext.Provider value={{ socket, isConnected }}>
