@@ -17,6 +17,7 @@ const {
     checkEmail,
     updateProfile,
     changePassword,
+    deleteAccount,
     getPublicProfile
 } = require("../controllers/auth");
 const passport = require("passport");
@@ -164,6 +165,7 @@ router.post("/refresh-token", refreshToken);
  */
 router.get("/me", authenticate, rateLimiter(3600, 500), getMe);
 router.put("/profile", authenticate, rateLimiter(3600, 500), updateProfile);
+router.delete("/profile", authenticate, rateLimiter(3600, 500), deleteAccount);
 router.put("/change-password", authenticate, rateLimiter(3600, 500), changePassword);
 router.get("/profile/:username", rateLimiter(3600, 500), getPublicProfile);
 

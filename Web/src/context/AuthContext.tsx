@@ -22,6 +22,7 @@ interface User {
     role?: string;
     isVerified?: boolean;
     hasSetUsername?: boolean;
+    isDeleted?: boolean;
 }
 
 interface AuthContextType {

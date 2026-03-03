@@ -422,3 +422,45 @@ exports.changePassword = asyncHandler(async (req, res, next) => {
     await user.save();
     res.status(200).json({ success: true, message: 'Password changed' });
 });
+
+/**
+ * @desc    Delete user account (Soft Delete with GDPR event)
+ * @route   DELETE /api/v1/auth/profile
+ * @access  Private
+ */
+exports.deleteAccount = asyncHandler(async (req, res, next) => {
+    const userId = req.user.id || req.user._id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // 1. Publish GDPR deletion event first
+    try {
+        await MessageBus.publish("zuvo_tasks", {
+            type: "GDPR_USER_DELETE",
+            userId: userId
+        });
+    } catch (err) {
+        logger.error(`Failed to publish GDPR delete event for user ${userId}: ${err.message}`);
+        return res.status(500).json({ success: false, message: "Failed to initiate account deletion. Please try again." });
+    }
+
+    // 2. Soft delete the user
+    await user.softDelete();
+
+    // 3. Clear tokens
+    res.cookie("refreshToken", "none", {
+        expires: new Date(Date.now() + 10 * 1000),
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+        path: "/"
+    });
+
+    res.status(200).json({
+        success: true,
+        message: "Account marked for deletion. Data will be scrubbed within 30 days."
+    });
+});

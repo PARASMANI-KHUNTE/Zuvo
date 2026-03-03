@@ -1,7 +1,13 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { User, Lock, Bell, Shield, Save, Loader2, Image as ImageIcon, CheckCircle2, AlertCircle, Twitter, Instagram, Github, MapPin, Globe, Camera } from "lucide-react";
+import {
+    User, Mail, Camera, Lock, Eye, EyeOff, Bell,
+    Shield, Globe, Trash2, CheckCircle2, AlertTriangle,
+    Loader2, ChevronRight, Share2, Info, LogOut, Twitter, Instagram, Github, MapPin, AlertCircle, Save
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
+import { useConfirm } from "@/context/ConfirmationContext";
 import apiClient from "@/lib/api";
 import imageCompression from "browser-image-compression";
 
@@ -26,7 +32,9 @@ const SETTINGS_TABS = [
 ];
 
 export default function SettingsPage() {
-    const { user, loading: authLoading, setUser } = useAuth();
+    const { user, loading: authLoading, setUser, logout } = useAuth();
+    const { toast } = useToast();
+    const { confirm } = useConfirm();
     const [activeTab, setActiveTab] = useState("account");
     const [saving, setSaving] = useState(false);
     const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -37,6 +45,9 @@ export default function SettingsPage() {
     const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
     const [pwSaving, setPwSaving] = useState(false);
     const [pwStatus, setPwStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const [formData, setFormData] = useState({
         name: "",
@@ -100,7 +111,7 @@ export default function SettingsPage() {
             const formDataMedia = new FormData();
             formDataMedia.append("file", compressed);
             const uploadRes = await apiClient.post("/media/upload", formDataMedia, {
-                headers: { "Content-Type": "multipart/form-data" }
+                headers: { "Content-Type": "multipart/form-type" }
             });
 
             const avatarUrl = uploadRes.data.data.url;
@@ -127,7 +138,7 @@ export default function SettingsPage() {
             const formDataMedia = new FormData();
             formDataMedia.append("file", compressed);
             const uploadRes = await apiClient.post("/media/upload", formDataMedia, {
-                headers: { "Content-Type": "multipart/form-data" }
+                headers: { "Content-Type": "multipart/form-type" }
             });
 
             const bannerUrl = uploadRes.data.data.url;
@@ -171,6 +182,28 @@ export default function SettingsPage() {
             setPwStatus({ type: "error", message: err.response?.data?.message || "Failed to change password." });
         } finally {
             setPwSaving(false);
+        }
+    };
+
+    const handleDeleteAccount = async () => {
+        const result = await confirm({
+            title: "Delete Account",
+            message: "Are you sure you want to delete your account? This action is irreversible and all your data will be queued for deletion (GDPR compliant).",
+            confirmText: "Delete My Account",
+            type: "danger"
+        });
+
+        if (result) {
+            try {
+                const res = await apiClient.delete("/auth/profile");
+                if (res.data.success) {
+                    toast("Account successfully marked for deletion.", "success");
+                    logout();
+                    window.location.href = "/";
+                }
+            } catch (err: any) {
+                toast(err.response?.data?.message || "Failed to delete account", "error");
+            }
         }
     };
 
@@ -407,16 +440,24 @@ export default function SettingsPage() {
                         </div>
 
                         {/* Danger Zone */}
-                        <div className="glass-panel p-6 rounded-2xl border border-red-500/20 bg-red-500/5">
-                            <h2 className="text-red-500 font-bold mb-2">Danger Zone</h2>
-                            <p className="text-sm text-slate-400 mb-4">Permanently delete your account and all associated data. This action cannot be undone.</p>
-                            <button className="px-4 py-2 text-sm font-bold text-red-500 border border-red-500/50 rounded-lg hover:bg-red-500/20 transition-colors">
+                        <div className="glass-panel p-6 rounded-2xl border border-rose-500/20 bg-rose-500/5 mt-8">
+                            <div className="flex items-center gap-3 mb-2">
+                                <Trash2 className="w-5 h-5 text-rose-500" />
+                                <h2 className="text-rose-500 font-bold text-lg">Danger Zone</h2>
+                            </div>
+                            <p className="text-sm text-slate-400 mb-6 max-w-lg">
+                                Once you delete your account, there is no going back. Please be certain.
+                                Your data will be queued for removal in compliance with GDPR.
+                            </p>
+                            <button
+                                onClick={handleDeleteAccount}
+                                className="px-6 py-2.5 text-sm font-bold text-rose-500 border border-rose-500/30 rounded-xl hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-all active:scale-95"
+                            >
                                 Delete Account
                             </button>
                         </div>
                     </div>
                 )}
-
 
                 {activeTab === "privacy" && (
                     <div className="glass-panel p-8 rounded-2xl border border-white/5 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">

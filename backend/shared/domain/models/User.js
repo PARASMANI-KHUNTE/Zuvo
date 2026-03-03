@@ -145,4 +145,7 @@ userSchema.methods.hashToken = function (token) {
         .digest("hex");
 };
 
+const softDelete = require("../softDelete");
+userSchema.plugin(softDelete);
+
 module.exports = mongoose.models.User || mongoose.model("User", userSchema);

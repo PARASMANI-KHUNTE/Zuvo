@@ -15,13 +15,36 @@ interface NotificationItem {
     isRead: boolean;
 }
 
+interface FollowRequest {
+    id: string;
+    followerId: string;
+    user: {
+        name: string;
+        username: string;
+        avatar: string;
+    };
+    createdAt: string;
+}
+
 export default function NotificationsPage() {
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+    const [followRequests, setFollowRequests] = useState<FollowRequest[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetchNotifications();
+        Promise.all([fetchNotifications(), fetchFollowRequests()]).finally(() => setLoading(false));
     }, []);
+
+    const fetchFollowRequests = async () => {
+        try {
+            const res = await apiClient.get("/interactions/relationships/requests");
+            if (res.data.success) {
+                setFollowRequests(res.data.data);
+            }
+        } catch (err) {
+            console.error("Failed to fetch follow requests", err);
+        }
+    };
 
     const fetchNotifications = async () => {
         try {
@@ -31,8 +54,6 @@ export default function NotificationsPage() {
             }
         } catch (err) {
             console.error("Failed to fetch notifications", err);
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -51,6 +72,17 @@ export default function NotificationsPage() {
             setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
         } catch (err) {
             console.error("Failed to mark as read", err);
+        }
+    };
+
+    const handleFollowRequest = async (requestId: string, action: "accept" | "reject") => {
+        try {
+            const res = await apiClient.put(`/interactions/relationships/requests/${requestId}/${action}`);
+            if (res.data.success) {
+                setFollowRequests(prev => prev.filter(r => r.id !== requestId));
+            }
+        } catch (err) {
+            console.error(`Failed to ${action} follow request`, err);
         }
     };
 
@@ -104,7 +136,46 @@ export default function NotificationsPage() {
                 </div>
             </div>
 
-            {/* Notification List */}
+            {/* Follow Requests Section */}
+            {followRequests.length > 0 && (
+                <div className="space-y-4">
+                    <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider px-2">Follow Requests</h2>
+                    <div className="glass-panel rounded-2xl overflow-hidden divide-y divide-white/5">
+                        {followRequests.map((req) => (
+                            <div key={req.id} className="p-5 flex items-center justify-between gap-4 hover:bg-white/5 transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <img
+                                        src={req.user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"}
+                                        alt={req.user?.name}
+                                        className="w-10 h-10 rounded-full object-cover border border-white/10"
+                                    />
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-bold text-white truncate">{req.user?.name}</p>
+                                        <p className="text-xs text-slate-400 truncate">@{req.user?.username}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => handleFollowRequest(req.id, "accept")}
+                                        className="bg-primary hover:bg-primary/80 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all active:scale-95"
+                                    >
+                                        Accept
+                                    </button>
+                                    <button
+                                        onClick={() => handleFollowRequest(req.id, "reject")}
+                                        className="bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold px-4 py-2 rounded-xl transition-all active:scale-95 border border-white/10"
+                                    >
+                                        Reject
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Notification List Section */}
+            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider px-2">Recent Notifications</h2>
             <div className="glass-panel rounded-2xl overflow-hidden divide-y divide-white/5">
                 {notifications.length > 0 ? (
                     notifications.map((notif) => (

@@ -371,3 +371,58 @@ const startChatGDPRListener = async () => {
 
 if (process.env.SERVICE_NAME === "blog-service") startBlogGDPRListener();
 if (process.env.SERVICE_NAME === "chat-service") startChatGDPRListener();
+
+// GDPR Listener for Interactions Service
+const startInteractionsGDPRListener = async () => {
+    await MessageBus.createConsumerGroup("zuvo_tasks", "interactions_gdpr_group");
+    while (true) {
+        try {
+            const results = await redisClient.xReadGroup("interactions_gdpr_group", "interactions_worker", { key: "zuvo_tasks", id: ">" }, { COUNT: 1, BLOCK: 5000 });
+            if (results) {
+                for (const stream of results) {
+                    for (const message of stream.messages) {
+                        const { id, message: data } = message;
+                        const task = JSON.parse(data.data);
+                        if (task.type === "GDPR_USER_DELETE") {
+                            const Relationship = require("./src/models/Relationship");
+                            const Comment = models.Comment();
+                            logger.info(`GDPR: Scrubbing Interactions data for user ${task.userId}`);
+                            await Promise.all([
+                                Relationship.deleteMany({ $or: [{ follower: task.userId }, { following: task.userId }] }),
+                                Comment.updateMany({ user: task.userId }, { content: "[DELETED]", isDeleted: true })
+                            ]);
+                        }
+                        await redisClient.xAck("zuvo_tasks", "interactions_gdpr_group", id);
+                    }
+                }
+            }
+        } catch (err) { logger.error("GDPR Listener Error (Interactions)", err); await new Promise(r => setTimeout(r, 5000)); }
+    }
+};
+
+// GDPR Listener for Realtime Service (Notifications)
+const startRealtimeGDPRListener = async () => {
+    await MessageBus.createConsumerGroup("zuvo_tasks", "realtime_gdpr_group");
+    while (true) {
+        try {
+            const results = await redisClient.xReadGroup("realtime_gdpr_group", "realtime_worker", { key: "zuvo_tasks", id: ">" }, { COUNT: 1, BLOCK: 5000 });
+            if (results) {
+                for (const stream of results) {
+                    for (const message of stream.messages) {
+                        const { id, message: data } = message;
+                        const task = JSON.parse(data.data);
+                        if (task.type === "GDPR_USER_DELETE") {
+                            const Notification = models.Notification();
+                            logger.info(`GDPR: Scrubbing Realtime data for user ${task.userId}`);
+                            await Notification.deleteMany({ userId: task.userId });
+                        }
+                        await redisClient.xAck("zuvo_tasks", "realtime_gdpr_group", id);
+                    }
+                }
+            }
+        } catch (err) { logger.error("GDPR Listener Error (Realtime)", err); await new Promise(r => setTimeout(r, 5000)); }
+    }
+};
+
+if (process.env.SERVICE_NAME === "interactions-service") startInteractionsGDPRListener();
+if (process.env.SERVICE_NAME === "realtime-service") startRealtimeGDPRListener();
