@@ -131,14 +131,27 @@ exports.login = asyncHandler(async (req, res, next) => {
         return res.status(400).json({ success: false, message: "Please provide an email and password" });
     }
 
-    const user = await User.findOne({ email }).select("+password");
+    // Include all states during login to allow reactivation
+    const user = await User.findOne({ email }).select("+password").where({ includeAllStates: true });
     if (!user) {
         return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
+
+    // Check if account is deleted permanently
+    if (user.accountStatus === "deleted") {
+        return res.status(403).json({ success: false, message: "Account has been permanently deleted" });
     }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
         return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
+
+    // Handle reactivation/state transition
+    if (user.accountStatus === "deactivated" || user.accountStatus === "pending_deletion") {
+        user.accountStatus = "active";
+        user.deletionScheduledAt = null;
+        await user.save();
     }
 
     // if (process.env.NODE_ENV !== "development" && !user.isVerified) {
@@ -172,6 +185,52 @@ exports.logout = asyncHandler(async (req, res, next) => {
     });
 
     res.status(200).json({ success: true, message: "Logged out successfully" });
+});
+
+// @route   DELETE /api/v1/auth/account
+exports.deleteAccount = asyncHandler(async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        // 1. Publish GDPR event for data scrubbing
+        await MessageBus.publish("zuvo_tasks", {
+            type: "GDPR_USER_DELETE",
+            userId: user._id
+        });
+
+        // 2. Immediate Session Death
+        // Wipe refresh tokens from DB
+        user.refreshTokens = [];
+
+        // 3. Update State machine
+        user.accountStatus = "pending_deletion";
+        user.deletionScheduledAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+        await user.save({ validateBeforeSave: false });
+
+        // 4. Publish Session Invalidation event for Redis/Auth-cache services
+        await MessageBus.publish("zuvo_tasks", {
+            type: "USER_SESSIONS_INVALIDATED",
+            userId: user._id
+        });
+
+        // 5. Clear cookie
+        res.clearCookie("refreshToken", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict"
+        });
+
+        res.status(200).json({
+            success: true,
+            message: "Account scheduled for deletion. You have 30 days to reactivate."
+        });
+    } catch (err) {
+        console.error("Delete account error:", err);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
 });
 
 // @route   POST /api/v1/auth/refresh-token

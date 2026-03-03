@@ -101,6 +101,16 @@ const userSchema = new mongoose.Schema({
     followingCount: {
         type: Number,
         default: 0
+    },
+    accountStatus: {
+        type: String,
+        enum: ["active", "deactivated", "pending_deletion", "deleted"],
+        default: "active",
+        index: true
+    },
+    deletionScheduledAt: {
+        type: Date,
+        default: null
     }
 }, {
     timestamps: true,

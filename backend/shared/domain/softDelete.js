@@ -15,14 +15,18 @@ module.exports = function softDeletePlugin(schema) {
         }
     });
 
-    // Middleware to exclude deleted documents by default
+    // Middleware to exclude non-active documents by default
     schema.pre(/^find/, function () {
         const query = this.getQuery();
-        if (query.includeDeleted) {
-            delete query.includeDeleted;
+
+        // If query explicitly wants to bypass filters (e.g., for login or admin)
+        if (query.includeAllStates) {
+            delete query.includeAllStates;
             return;
         }
-        this.where({ isDeleted: false });
+
+        // Only include active accounts by default
+        this.where({ accountStatus: "active" });
     });
 
     schema.methods.softDelete = async function () {

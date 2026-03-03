@@ -147,58 +147,70 @@ exports.toggleFollow = asyncHandler(async (req, res, next) => {
         return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    const existingRelationship = await Relationship.findOne({ follower: followerId, following: userId });
+    // 2. Check for existing relationship
+    const existing = await Relationship.findOne({ follower: followerId, following: userId });
 
-    if (existingRelationship) {
-        // IDEMPOTENCY & TOGGLE LOGIC:
-        // Case A: Already following -> Unfollow
-        if (existingRelationship.status === "following") {
-            await Relationship.deleteOne({ _id: existingRelationship._id });
-            await MessageBus.publish("zuvo_tasks", { type: "UNFOLLOW", followerId, followingId: userId });
-            return res.status(200).json({ success: true, message: "Unfollowed successfully", isFollowing: false, status: "none" });
+    // 3. IDEMPOTENCY & TOGGLE LOGIC:
+    if (existing) {
+        if (existing.status === "requested" && !targetUser.isPrivate) {
+            // Target was private, now public -> upgrade to following
+            existing.status = "following";
+            await existing.save();
+
+            await MessageBus.publish("zuvo_tasks", {
+                type: "FOLLOW_ACCEPTED",
+                followerId: followerId,
+                followingId: userId
+            });
+            return res.status(200).json({ success: true, status: "following", message: "Request upgraded to follow" });
         }
 
-        // Case B: Pending Request exists
-        if (existingRelationship.status === "requested") {
-            // Target is now PUBLIC -> Upgrade to following
-            if (!targetUser.isPrivate) {
-                existingRelationship.status = "following";
-                await existingRelationship.save();
-                await MessageBus.publish("zuvo_tasks", { type: "FOLLOW", followerId, followingId: userId });
-                return res.status(200).json({ success: true, message: "Followed successfully", isFollowing: true, status: "following" });
-            }
-            // Target still PRIVATE -> Cancel request (unfollow)
-            await Relationship.deleteOne({ _id: existingRelationship._id });
-            return res.status(200).json({ success: true, message: "Follow request cancelled", isFollowing: false, status: "none" });
-        }
+        // Otherwise (already following or cancelling request) -> Unfollow
+        await Relationship.deleteOne({ _id: existing._id });
+        await MessageBus.publish("zuvo_tasks", {
+            type: "UNFOLLOW",
+            followerId: followerId,
+            followingId: userId
+        });
+        return res.status(200).json({ success: true, status: "none", message: "Unfollowed/Request cancelled" });
     }
 
-    // 2. Create new relationship
+    // 4. Create new relationship
     const status = targetUser.isPrivate ? "requested" : "following";
-    await Relationship.create({ follower: followerId, following: userId, status });
 
-    if (status === "following") {
-        await Promise.all([
-            MessageBus.publish("zuvo_tasks", {
-                type: "NOTIFICATION",
-                userId: userId,
-                notificationType: "FOLLOW",
-                actorId: followerId,
-                content: `${req.user.name || "Someone"} started following you`
-            }),
-            MessageBus.publish("zuvo_tasks", { type: "FOLLOW", followerId, followingId: userId })
-        ]);
-        return res.status(200).json({ success: true, message: "Followed successfully", isFollowing: true, status: "following" });
-    } else {
-        // Requested
-        await MessageBus.publish("zuvo_tasks", {
-            type: "NOTIFICATION",
-            userId: userId,
-            notificationType: "FOLLOW_REQUEST",
-            actorId: followerId,
-            content: `${req.user.name || "Someone"} requested to follow you`
+    try {
+        await Relationship.create({
+            follower: followerId,
+            following: userId,
+            status
         });
-        return res.status(200).json({ success: true, message: "Follow request sent", isFollowing: false, status: "requested" });
+
+        if (status === "following") {
+            await MessageBus.publish("zuvo_tasks", {
+                type: "FOLLOW",
+                followerId: followerId,
+                followingId: userId
+            });
+        } else {
+            await MessageBus.publish("zuvo_tasks", {
+                type: "FOLLOW_REQUEST",
+                followerId: followerId,
+                followingId: userId
+            });
+        }
+
+        return res.status(200).json({ success: true, status, message: status === "requested" ? "Request sent" : "Followed successfully" });
+    } catch (err) {
+        // Handle race condition (duplicate key error)
+        if (err.code === 11000) {
+            const retryExisting = await Relationship.findOne({ follower: followerId, following: userId });
+            return res.status(200).json({
+                success: true,
+                status: retryExisting?.status || "none",
+                message: "Idempotent response (concurrency handled)"
+            });
+        }
+        throw err;
     }
 });
 
@@ -212,17 +224,21 @@ exports.getFollowRequests = asyncHandler(async (req, res, next) => {
     const requests = await Relationship.find({ following: userId, status: "requested" })
         .sort({ createdAt: -1 });
 
+    // Enrich with profiles via internal service
     const followerIds = requests.map(r => r.follower);
     const profiles = await internalServices.getUsersProfiles(followerIds);
 
-    const enriched = requests.map((req, idx) => ({
+    // Deterministic ID-based mapping
+    const profileMap = new Map(profiles.map(p => [p.id.toString(), p]));
+
+    const enrichedRequests = requests.map(req => ({
         id: req._id,
         followerId: req.follower,
-        user: profiles[idx],
+        user: profileMap.get(req.follower.toString()),
         createdAt: req.createdAt
     }));
 
-    res.status(200).json({ success: true, data: enriched });
+    res.status(200).json({ success: true, data: enrichedRequests });
 });
 
 /**
@@ -244,22 +260,14 @@ exports.handleFollowRequest = asyncHandler(async (req, res, next) => {
         request.status = "following";
         await request.save();
 
-        await Promise.all([
-            MessageBus.publish("zuvo_tasks", {
-                type: "NOTIFICATION",
-                userId: request.follower,
-                notificationType: "FOLLOW_ACCEPTED",
-                actorId: userId,
-                content: `${req.user.name || "Someone"} accepted your follow request`
-            }),
-            MessageBus.publish("zuvo_tasks", {
-                type: "FOLLOW",
-                followerId: request.follower,
-                followingId: userId
-            })
-        ]);
+        // 2. Publish event for count updates & notifications
+        await MessageBus.publish("zuvo_tasks", {
+            type: "FOLLOW_ACCEPTED",
+            followerId: request.follower,
+            followingId: req.user._id
+        });
 
-        return res.status(200).json({ success: true, message: "Follow request accepted" });
+        res.status(200).json({ success: true, message: `Follow request ${action}ed` });
     } else if (action === "reject") {
         await Relationship.deleteOne({ _id: request._id });
         return res.status(200).json({ success: true, message: "Follow request rejected" });

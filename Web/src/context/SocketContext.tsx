@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "./AuthContext";
 import { useToast } from "./ToastContext";
@@ -20,8 +20,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const { toast } = useToast();
     const [socket, setSocket] = useState<Socket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
+    const connectionVersion = useRef(0);
 
     const connectSocket = useCallback((token: string) => {
+        const version = ++connectionVersion.current;
+        console.log(`Connecting Socket v${version}...`);
+
         const newSocket = io(SOCKET_URL, {
             auth: { token },
             transports: ["websocket"],
@@ -31,13 +35,19 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         });
 
         newSocket.on("connect", () => {
+            if (version !== connectionVersion.current) {
+                newSocket.disconnect();
+                return;
+            }
             console.log("Connected to realtime server");
             setIsConnected(true);
         });
 
         newSocket.on("disconnect", (reason) => {
-            console.log("Disconnected from realtime server:", reason);
-            setIsConnected(false);
+            if (version === connectionVersion.current) {
+                console.log("Disconnected from realtime server:", reason);
+                setIsConnected(false);
+            }
         });
 
         newSocket.on("connect_error", (err) => {
