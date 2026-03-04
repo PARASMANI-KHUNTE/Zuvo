@@ -18,7 +18,7 @@ router.get("/share/:postId", generateShareLink);
 router.post("/follow", authenticate, toggleFollow);
 router.get("/relationships/requests", authenticate, getFollowRequests);
 router.put("/relationships/requests/:requestId/:action", authenticate, handleFollowRequest);
-router.get("/relationships/:userId", authenticate, getRelationships);
+router.get("/relationships/:userId", optionalAuth, getRelationships);
 router.get("/relationships/:userId/followers", optionalAuth, getFollowers);
 router.get("/relationships/:userId/following", optionalAuth, getFollowing);
 

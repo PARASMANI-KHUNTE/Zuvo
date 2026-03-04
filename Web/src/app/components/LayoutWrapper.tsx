@@ -1,4 +1,6 @@
+"use client";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
 import { ModalProvider } from "@/context/ModalContext";

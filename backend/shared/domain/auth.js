@@ -41,4 +41,14 @@ const authorize = (...roles) => {
     };
 };
 
-module.exports = { authenticate, authorize };
+const optionalAuth = (req, res, next) => {
+    if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
+        return authenticate(req, res, next);
+    }
+    if (req.cookies?.token) {
+        return authenticate(req, res, next);
+    }
+    next();
+};
+
+module.exports = { authenticate, authorize, optionalAuth };

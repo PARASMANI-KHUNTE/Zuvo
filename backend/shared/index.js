@@ -18,7 +18,7 @@ const HealthCheck = require("./infra/health");
 const models = require("./domain/models");
 
 // Domain Layer (Business Rules & Plugins)
-const { authenticate, authorize } = require("./domain/auth");
+const { authenticate, authorize, optionalAuth } = require("./domain/auth");
 const rateLimiter = require("./domain/rateLimiter");
 const security = require("./domain/security");
 const validator = require("./domain/validator");
@@ -51,6 +51,7 @@ module.exports = {
     models,
     authenticate,
     authorize,
+    optionalAuth,
     rateLimiter,
     security,
     validator,

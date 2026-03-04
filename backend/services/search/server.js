@@ -1,6 +1,6 @@
 const express = require("express");
 const dotenv = require("dotenv");
-const { models, logger, requestTrace, connectRedis, redisClient, connectDB, initTracing, metrics, faultInjection, errorHandler, authenticate, internalServices, HealthCheck, rateLimiter } = require("@zuvo/shared");
+const { models, logger, requestTrace, connectRedis, redisClient, connectDB, initTracing, metrics, faultInjection, errorHandler, authenticate, optionalAuth, internalServices, HealthCheck, rateLimiter } = require("@zuvo/shared");
 const Post = models.Post();
 
 dotenv.config();
@@ -69,7 +69,7 @@ app.get("/api/v1/search", rateLimiter(3600, 500), async (req, res, next) => {
             const users = await internalServices.searchUsers(q, limit, skip) || [];
 
             // Deduplicate matching users with post authors
-            const userIds = new Set(users.map(u => u._id.toString()));
+            const userIds = new Set(users.map(u => (u.id || u._id).toString()));
 
             // Add authors of matched posts to the people list if not already there
             const additionalAuthors = [];
@@ -136,10 +136,26 @@ app.get("/api/v1/search/trending", async (req, res, next) => {
  * @route   GET /api/v1/search/suggested-users
  * @access  Public
  */
-app.get("/api/v1/search/suggested-users", async (req, res, next) => {
+app.get("/api/v1/search/suggested-users", optionalAuth, async (req, res, next) => {
     try {
-        // Just return some users for now (could be based on shared tags in future)
-        const users = await internalServices.searchUsers("", 5);
+        let exclude = [];
+        if (req.user) {
+            const userId = req.user.id || req.user._id;
+            exclude.push(userId.toString());
+
+            try {
+                const followingRes = await internalServices.getFollowing(userId);
+                if (followingRes && Array.isArray(followingRes)) {
+                    const followedIds = followingRes.map(f => (f.id || f._id).toString());
+                    exclude.push(...followedIds);
+                }
+            } catch (followErr) {
+                logger.warn(`Failed to fetch followed users for exclusion: ${followErr.message}`);
+                // Continue with just self-exclusion
+            }
+        }
+
+        const users = await internalServices.searchUsers("", 5, 0, exclude);
         res.status(200).json({ success: true, data: users });
     } catch (err) {
         next(err);
