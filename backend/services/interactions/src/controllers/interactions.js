@@ -305,10 +305,10 @@ exports.getRelationships = asyncHandler(async (req, res, next) => {
     const { userId } = req.params;
     const currentUserId = req.user?.id || req.user?._id;
 
-    const [followersCount, followingCount, isFollowing] = await Promise.all([
-        Relationship.countDocuments({ following: userId }),
-        Relationship.countDocuments({ follower: userId }),
-        currentUserId ? Relationship.exists({ follower: currentUserId, following: userId }) : Promise.resolve(false)
+    const [followersCount, followingCount, relationship] = await Promise.all([
+        Relationship.countDocuments({ following: userId, status: "following" }),
+        Relationship.countDocuments({ follower: userId, status: "following" }),
+        currentUserId ? Relationship.findOne({ follower: currentUserId, following: userId }) : Promise.resolve(null)
     ]);
 
     res.status(200).json({
@@ -316,7 +316,8 @@ exports.getRelationships = asyncHandler(async (req, res, next) => {
         data: {
             followersCount,
             followingCount,
-            isFollowing: !!isFollowing
+            isFollowing: relationship?.status === "following",
+            followStatus: relationship?.status || "none"
         }
     });
 });

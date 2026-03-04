@@ -70,6 +70,15 @@ exports.searchInternalUsers = asyncHandler(async (req, res, next) => {
         }
         : {};
 
+    // Apply exclusions if provided
+    const { exclude } = req.query;
+    if (exclude) {
+        const excludeIds = exclude.split(",").filter(id => id.length === 24); // Simple MongoID length check
+        if (excludeIds.length > 0) {
+            query._id = { $nin: excludeIds };
+        }
+    }
+
     const users = await User.find(query)
         .limit(parseInt(limit))
         .skip(parseInt(skip))

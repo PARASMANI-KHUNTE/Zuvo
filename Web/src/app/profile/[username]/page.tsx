@@ -36,13 +36,23 @@ export default function ProfilePage() {
 
                 const userId = profileUser._id || profileUser.id;
 
-                // 2. Fetch Relationships
-                const relRes = await apiClient.get(`/interactions/relationships/${userId}`);
-                setStats(relRes.data.data);
+                // 2. Fetch Relationships and Posts independently
+                const [relRes, postsRes] = await Promise.allSettled([
+                    apiClient.get(`/interactions/relationships/${userId}`),
+                    apiClient.get(`/blogs?author=${userId}`)
+                ]);
 
-                // 3. Fetch User Posts via Blog service author filter
-                const postsRes = await apiClient.get(`/blogs?author=${userId}`);
-                setPosts(postsRes.data.data || []);
+                if (relRes.status === "fulfilled") {
+                    setStats(relRes.value.data.data);
+                } else {
+                    console.error("Failed to fetch relationships", relRes.reason);
+                }
+
+                if (postsRes.status === "fulfilled") {
+                    setPosts(postsRes.value.data.data || []);
+                } else {
+                    console.error("Failed to fetch posts", postsRes.reason);
+                }
 
             } catch (err) {
                 console.error("Failed to fetch profile", err);
@@ -60,10 +70,16 @@ export default function ProfilePage() {
         try {
             const res = await apiClient.post("/interactions/follow", { userId: user._id || user.id });
             if (res.data.success) {
+                const nowFollowing = res.data.status === "following";
+                const wasFollowing = stats.isFollowing;
                 setStats(prev => ({
                     ...prev,
-                    isFollowing: res.data.isFollowing,
-                    followersCount: res.data.isFollowing ? prev.followersCount + 1 : prev.followersCount - 1
+                    isFollowing: nowFollowing,
+                    followersCount: nowFollowing && !wasFollowing
+                        ? prev.followersCount + 1
+                        : !nowFollowing && wasFollowing
+                            ? prev.followersCount - 1
+                            : prev.followersCount
                 }));
             }
         } catch (err) {

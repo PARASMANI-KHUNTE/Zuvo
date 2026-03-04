@@ -7,6 +7,7 @@ class InternalServiceClient {
     constructor() {
         this.authBaseUrl = process.env.AUTH_INTERNAL_URL || "http://127.0.0.1:8000";
         this.blogBaseUrl = process.env.BLOG_INTERNAL_URL || "http://127.0.0.1:8001";
+        this.interactionsBaseUrl = process.env.INTERACTIONS_INTERNAL_URL || "http://127.0.0.1:8002";
     }
 
     async _get(url, requestId) {
@@ -55,9 +56,15 @@ class InternalServiceClient {
         return this.getUserProfile(userId);
     }
 
-    async searchUsers(query, limit = 10, skip = 0) {
+    async searchUsers(query, limit = 10, skip = 0, exclude = []) {
         const store = asyncLocalStorage.getStore();
-        return this._get(`${this.authBaseUrl}/api/v1/auth/internal/users/search?q=${query}&limit=${limit}&skip=${skip}`, store?.requestId);
+        const excludeStr = Array.isArray(exclude) ? exclude.join(",") : exclude;
+        return this._get(`${this.authBaseUrl}/api/v1/auth/internal/users/search?q=${query}&limit=${limit}&skip=${skip}&exclude=${excludeStr}`, store?.requestId);
+    }
+
+    async getFollowing(userId) {
+        const store = asyncLocalStorage.getStore();
+        return this._get(`${this.interactionsBaseUrl}/api/v1/interactions/relationships/${userId}/following`, store?.requestId);
     }
 
     async getPost(postId) {
