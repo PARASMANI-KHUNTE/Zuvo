@@ -307,6 +307,37 @@ const handleTask = async (task) => {
                 logger.error("Failed to sync follow counts", err);
             }
             break;
+        case "FOLLOW_REQUEST":
+            logger.info(`Processing follow request: ${task.followerId} -> ${task.followingId}`);
+            try {
+                await processNotification({
+                    userId: task.followingId,
+                    type: "follow",
+                    actorId: task.followerId,
+                    content: `sent you a follow request`
+                });
+            } catch (err) {
+                logger.error("Failed to send follow request notification", err);
+            }
+            break;
+        case "FOLLOW_ACCEPTED":
+            logger.info(`Syncing accepted follow counts for ${task.followerId} -> ${task.followingId}`);
+            try {
+                const User = models.User();
+                await Promise.all([
+                    User.findByIdAndUpdate(task.followerId, { $inc: { followingCount: 1 } }),
+                    User.findByIdAndUpdate(task.followingId, { $inc: { followersCount: 1 } })
+                ]);
+                await processNotification({
+                    userId: task.followerId,
+                    type: "follow",
+                    actorId: task.followingId,
+                    content: `accepted your follow request`
+                });
+            } catch (err) {
+                logger.error("Failed to sync accepted follow counts", err);
+            }
+            break;
         case "UNFOLLOW":
             logger.info(`Syncing unfollow counts for ${task.followerId} -> ${task.followingId}`);
             try {
