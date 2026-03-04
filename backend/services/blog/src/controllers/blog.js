@@ -5,12 +5,18 @@ const Post = models.Post();
 // @access  Private
 exports.createPost = asyncHandler(async (req, res, next) => {
     logger.info(`createPost: Attempting post creation for user: ${req.user?._id || req.user?.id}`);
-    logger.info(`createPost: Body: ${JSON.stringify(req.body)}`);
+    const allowedFields = ["title", "content", "tags", "media", "status"];
+    const createPayload = {};
+    for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+            createPayload[field] = req.body[field];
+        }
+    }
 
     // Add author from authenticated user
-    req.body.author = req.user?._id || req.user?.id;
+    createPayload.author = req.user?._id || req.user?.id;
 
-    const post = await Post.create(req.body);
+    const post = await Post.create(createPayload);
 
     // Audit Log
     await audit.logAudit({
@@ -126,7 +132,15 @@ exports.updatePost = asyncHandler(async (req, res, next) => {
 
     const oldData = post.toObject();
 
-    post = await Post.findByIdAndUpdate(req.params.id, req.body, {
+    const allowedFields = ["title", "content", "tags", "media", "status"];
+    const updates = {};
+    for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+            updates[field] = req.body[field];
+        }
+    }
+
+    post = await Post.findByIdAndUpdate(req.params.id, updates, {
         new: true,
         runValidators: true
     });

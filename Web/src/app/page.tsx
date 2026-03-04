@@ -90,7 +90,7 @@ export default function Home() {
 
           <div className="border-l-4 border-primary pl-6">
             <h2 className="text-3xl font-bold">Latest Discovery</h2>
-            <p className="text-slate-400 mt-1">What's happening across the network.</p>
+            <p className="text-slate-400 mt-1">What&apos;s happening across the network.</p>
           </div>
 
           {postsLoading && posts.length === 0 ? (

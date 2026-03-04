@@ -42,7 +42,7 @@ export default function ForgotPasswordPage() {
                                     <ArrowLeft className="w-4 h-4" /> Back to login
                                 </Link>
                                 <h1 className="text-3xl font-extrabold tracking-tight pt-2">Forgot Password?</h1>
-                                <p className="text-slate-400 text-sm">Enter your email and we'll send a one-time OTP to reset your password.</p>
+                                <p className="text-slate-400 text-sm">Enter your email and we&apos;ll send a one-time OTP to reset your password.</p>
                             </div>
 
                             {error && (
@@ -93,7 +93,7 @@ export default function ForgotPasswordPage() {
                                 Enter OTP <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                             </Link>
                             <button onClick={() => setSent(false)} className="text-sm text-slate-500 hover:text-white transition-colors">
-                                Didn't receive it? Try again
+                                Didn&apos;t receive it? Try again
                             </button>
                         </motion.div>
                     )}

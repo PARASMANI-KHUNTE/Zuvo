@@ -12,6 +12,7 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: async (req, file) => {
+        const userId = (req.user?.id || req.user?._id || "anonymous").toString();
         const isVideo = file.mimetype.startsWith("video");
         const isAudio = file.mimetype.startsWith("audio");
         const isImage = file.mimetype.startsWith("image");
@@ -22,9 +23,12 @@ const storage = new CloudinaryStorage({
 
         // Preserve extension for raw types or default
         const ext = path.extname(file.originalname).substring(1);
+        const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, "");
+        const publicId = `usr_${safeUserId}__${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
         return {
-            folder: "blogging-app",
+            folder: `blogging-app/${safeUserId}`,
+            public_id: publicId,
             resource_type: resource_type,
             format: isImage ? (ext || "jpg") : isVideo ? "mp4" : ext,
             transformation: isImage

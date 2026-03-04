@@ -35,7 +35,9 @@ exports.addComment = asyncHandler(async (req, res, next) => {
                 userId: post.author.toString(),
                 notificationType: "COMMENT",
                 actorId: req.user.id || req.user._id,
-                content: `${req.user.name || "Someone"} commented on your post: "${content.substring(0, 30)}..."`
+                content: `commented on your post: "${content.substring(0, 30)}${content.length > 30 ? "..." : ""}"`,
+                targetId: postId,
+                targetImage: post.media?.[0]?.url
             });
         }
     } catch (notifyErr) {
@@ -72,23 +74,40 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
     const userVotedKey = `post:${postId}:user:${userId}:voted`;
 
     const existingVote = await redisClient.get(userVotedKey);
+    let likesDelta = 0;
 
     if (existingVote === action) {
         // Undo the same vote (toggle off)
-        if (action === "like") await redisClient.decr(likeKey);
+        if (action === "like") {
+            await redisClient.decr(likeKey);
+            likesDelta = -1;
+        }
         else await redisClient.decr(dislikeKey);
         await redisClient.del(userVotedKey);
+        await MessageBus.publish("zuvo_tasks", {
+            type: "LIKE_TOGGLE",
+            postId,
+            action,
+            userId,
+            likesDelta
+        });
         return res.status(200).json({ success: true, message: `${action} removed` });
     }
 
     if (existingVote) {
         // Switching vote: undo old vote first
-        if (existingVote === "like") await redisClient.decr(likeKey);
+        if (existingVote === "like") {
+            await redisClient.decr(likeKey);
+            likesDelta -= 1;
+        }
         else await redisClient.decr(dislikeKey);
     }
 
     // Apply new vote
-    if (action === "like") await redisClient.incr(likeKey);
+    if (action === "like") {
+        await redisClient.incr(likeKey);
+        likesDelta += 1;
+    }
     else await redisClient.incr(dislikeKey);
     await redisClient.set(userVotedKey, action);
 
@@ -102,7 +121,8 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
         type: "LIKE_TOGGLE",
         postId,
         action, // 'like' or 'dislike'
-        userId
+        userId,
+        likesDelta
     });
 
     res.status(200).json({
@@ -141,44 +161,139 @@ exports.toggleFollow = asyncHandler(async (req, res, next) => {
         return res.status(400).json({ success: false, message: "You cannot follow yourself" });
     }
 
-    const existingRelationship = await Relationship.findOne({ follower: followerId, following: userId });
+    // 1. Fetch target user to check privacy and existence
+    const targetUser = await internalServices.getInternalUser(userId);
+    if (!targetUser || (targetUser.accountStatus && targetUser.accountStatus !== "active")) {
+        return res.status(404).json({ success: false, message: "User not found" });
+    }
 
-    if (existingRelationship) {
-        await Relationship.deleteOne({ _id: existingRelationship._id });
+    // 2. Check for existing relationship
+    const existing = await Relationship.findOne({ follower: followerId, following: userId });
 
-        // Notify background task to update counts if needed
+    // 3. IDEMPOTENCY & TOGGLE LOGIC:
+    if (existing) {
+        if (existing.status === "requested" && !targetUser.isPrivate) {
+            // Target was private, now public -> upgrade to following
+            existing.status = "following";
+            await existing.save();
+
+            await MessageBus.publish("zuvo_tasks", {
+                type: "FOLLOW_ACCEPTED",
+                followerId: followerId,
+                followingId: userId
+            });
+            return res.status(200).json({ success: true, status: "following", message: "Request upgraded to follow" });
+        }
+
+        // Otherwise (already following or cancelling request) -> Unfollow
+        await Relationship.deleteOne({ _id: existing._id });
         await MessageBus.publish("zuvo_tasks", {
             type: "UNFOLLOW",
-            followerId,
+            followerId: followerId,
             followingId: userId
         });
-
-        return res.status(200).json({ success: true, message: "Unfollowed successfully", isFollowing: false });
+        return res.status(200).json({ success: true, status: "none", message: "Unfollowed/Request cancelled" });
     }
 
-    await Relationship.create({ follower: followerId, following: userId });
+    // 4. Create new relationship
+    const status = targetUser.isPrivate ? "requested" : "following";
 
-    // Notify user and update counts
     try {
-        await Promise.all([
-            MessageBus.publish("zuvo_tasks", {
-                type: "NOTIFICATION",
-                userId: userId,
-                notificationType: "FOLLOW",
-                actorId: followerId,
-                content: `${req.user.name || "Someone"} started following you`
-            }),
-            MessageBus.publish("zuvo_tasks", {
+        await Relationship.create({
+            follower: followerId,
+            following: userId,
+            status
+        });
+
+        if (status === "following") {
+            await MessageBus.publish("zuvo_tasks", {
                 type: "FOLLOW",
-                followerId,
+                followerId: followerId,
                 followingId: userId
-            })
-        ]);
+            });
+        } else {
+            await MessageBus.publish("zuvo_tasks", {
+                type: "FOLLOW_REQUEST",
+                followerId: followerId,
+                followingId: userId
+            });
+        }
+
+        return res.status(200).json({ success: true, status, message: status === "requested" ? "Request sent" : "Followed successfully" });
     } catch (err) {
-        logger.warn(`Failed to process follow events: ${err.message}`);
+        // Handle race condition (duplicate key error)
+        if (err.code === 11000) {
+            const retryExisting = await Relationship.findOne({ follower: followerId, following: userId });
+            return res.status(200).json({
+                success: true,
+                status: retryExisting?.status || "none",
+                message: "Idempotent response (concurrency handled)"
+            });
+        }
+        throw err;
+    }
+});
+
+/**
+ * @desc    Get pending follow requests for current user
+ * @route   GET /api/v1/interactions/requests
+ * @access  Private
+ */
+exports.getFollowRequests = asyncHandler(async (req, res, next) => {
+    const userId = req.user.id || req.user._id;
+    const requests = await Relationship.find({ following: userId, status: "requested" })
+        .sort({ createdAt: -1 });
+
+    // Enrich with profiles via internal service
+    const followerIds = requests.map(r => r.follower);
+    const profiles = await internalServices.getUsersProfiles(followerIds);
+
+    // Deterministic ID-based mapping
+    const profileMap = new Map(profiles.map(p => [p.id.toString(), p]));
+
+    const enrichedRequests = requests.map(req => ({
+        id: req._id,
+        followerId: req.follower,
+        user: profileMap.get(req.follower.toString()),
+        createdAt: req.createdAt
+    }));
+
+    res.status(200).json({ success: true, data: enrichedRequests });
+});
+
+/**
+ * @desc    Accept or Reject follow request
+ * @route   PUT /api/v1/interactions/requests/:requestId/:action
+ * @access  Private
+ */
+exports.handleFollowRequest = asyncHandler(async (req, res, next) => {
+    const { requestId, action } = req.params; // action: 'accept' or 'reject'
+    const userId = req.user.id || req.user._id;
+
+    const request = await Relationship.findById(requestId);
+
+    if (!request || request.following.toString() !== userId.toString() || request.status !== "requested") {
+        return res.status(404).json({ success: false, message: "Follow request not found or unauthorized" });
     }
 
-    res.status(200).json({ success: true, message: "Followed successfully", isFollowing: true });
+    if (action === "accept") {
+        request.status = "following";
+        await request.save();
+
+        // 2. Publish event for count updates & notifications
+        await MessageBus.publish("zuvo_tasks", {
+            type: "FOLLOW_ACCEPTED",
+            followerId: request.follower,
+            followingId: req.user._id
+        });
+
+        res.status(200).json({ success: true, message: `Follow request ${action}ed` });
+    } else if (action === "reject") {
+        await Relationship.deleteOne({ _id: request._id });
+        return res.status(200).json({ success: true, message: "Follow request rejected" });
+    }
+
+    res.status(400).json({ success: false, message: "Invalid action" });
 });
 
 /**
@@ -388,5 +503,73 @@ exports.toggleCommentLike = asyncHandler(async (req, res, next) => {
         success: true,
         message: `Comment ${action}d`,
         data: { likes: comment.likesCount }
+    });
+});
+
+/**
+ * @desc    Get followers for a user
+ * @route   GET /api/v1/interactions/relationships/:userId/followers
+ * @access  Public
+ */
+exports.getFollowers = asyncHandler(async (req, res, next) => {
+    const { userId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+
+    const relationships = await Relationship.find({ following: userId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+    const followerIds = relationships.map(r => r.follower);
+    const profiles = await internalServices.getUsersProfiles(followerIds);
+
+    // Filter out profiles with 'Unknown User' if desired, or keep as is.
+    // We'll also check if the current user is following these people
+    const currentUserId = req.user?.id || req.user?._id;
+    const enrichedProfiles = await Promise.all(profiles.map(async (profile) => {
+        const profileId = profile.id || profile._id;
+        const isFollowing = currentUserId ? await Relationship.exists({ follower: currentUserId, following: profileId }) : false;
+        return { ...profile, isFollowing: !!isFollowing };
+    }));
+
+    res.status(200).json({
+        success: true,
+        count: enrichedProfiles.length,
+        data: enrichedProfiles
+    });
+});
+
+/**
+ * @desc    Get users followed by a user
+ * @route   GET /api/v1/interactions/relationships/:userId/following
+ * @access  Public
+ */
+exports.getFollowing = asyncHandler(async (req, res, next) => {
+    const { userId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+
+    const relationships = await Relationship.find({ follower: userId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+    const followingIds = relationships.map(r => r.following);
+    const profiles = await internalServices.getUsersProfiles(followingIds);
+
+    const currentUserId = req.user?.id || req.user?._id;
+    const enrichedProfiles = await Promise.all(profiles.map(async (profile) => {
+        const profileId = profile.id || profile._id;
+        const isFollowing = currentUserId ? await Relationship.exists({ follower: currentUserId, following: profileId }) : false;
+        return { ...profile, isFollowing: !!isFollowing };
+    }));
+
+    res.status(200).json({
+        success: true,
+        count: enrichedProfiles.length,
+        data: enrichedProfiles
     });
 });

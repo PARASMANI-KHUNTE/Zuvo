@@ -18,15 +18,13 @@ const authenticate = (req, res, next) => {
 
     try {
         const secret = process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET;
-        console.log(`Auth Middleware: Verifying token with secret: ${secret ? secret.substring(0, 3) + "..." : "MISSING"} Path: ${req.path}`);
+        if (!secret) {
+            return res.status(500).json({ success: false, message: "Server authentication configuration error" });
+        }
         const decoded = jwt.verify(token, secret);
         req.user = decoded;
         next();
     } catch (err) {
-        console.error("Auth Middleware Error:", err.message, "Path:", req.path, "Token Start:", token ? token.substring(0, 15) : "none");
-        if (err.name === 'TokenExpiredError') {
-            console.error("Auth Middleware: Token Expired at", err.expiredAt);
-        }
         return res.status(401).json({ success: false, message: "Not authorized to access this route" });
     }
 };

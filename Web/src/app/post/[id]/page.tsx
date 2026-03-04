@@ -10,11 +10,13 @@ import SuggestedUsers from "@/app/components/SuggestedUsers";
 import TrendingSidebar from "@/app/components/TrendingSidebar";
 import apiClient from "@/lib/api";
 import Link from "next/link";
+import { useToast } from "@/context/ToastContext";
 
 export default function PostDetailPage({ params }: { params: { id: string } }) {
     const router = useRouter();
     const { fetchPostById, fetchComments, addComment } = usePosts();
     const { user: currentUser } = useAuth();
+    const { toast } = useToast();
     const [post, setPost] = useState<any>(null);
     const [comments, setComments] = useState<any[]>([]);
     const [commentText, setCommentText] = useState("");
@@ -73,7 +75,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                     await navigator.share({ title: post?.title, text: post?.content?.substring(0, 100), url });
                 } else {
                     await navigator.clipboard.writeText(url);
-                    alert("Link copied to clipboard!");
+                    toast("Link copied to clipboard!", "success");
                 }
             }
         } catch (err) {
@@ -159,7 +161,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                             type="button"
                             onClick={() => {
                                 navigator.clipboard.writeText(params.id);
-                                alert("Post ID copied to clipboard!");
+                                toast("Post ID copied to clipboard!", "success");
                             }}
                             title="Copy Post ID"
                             className="p-2 hover:bg-white/5 rounded-full transition-colors text-slate-500"

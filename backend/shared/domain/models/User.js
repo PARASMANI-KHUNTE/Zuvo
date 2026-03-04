@@ -81,6 +81,15 @@ const userSchema = new mongoose.Schema({
     },
     location: String,
     website: String,
+    socials: {
+        twitter: String,
+        instagram: String,
+        github: String
+    },
+    isPrivate: {
+        type: Boolean,
+        default: false
+    },
     refreshTokens: {
         type: [tokenSchema],
         select: false
@@ -92,6 +101,16 @@ const userSchema = new mongoose.Schema({
     followingCount: {
         type: Number,
         default: 0
+    },
+    accountStatus: {
+        type: String,
+        enum: ["active", "deactivated", "pending_deletion", "deleted"],
+        default: "active",
+        index: true
+    },
+    deletionScheduledAt: {
+        type: Date,
+        default: null
     }
 }, {
     timestamps: true,
@@ -135,5 +154,8 @@ userSchema.methods.hashToken = function (token) {
         .update(token)
         .digest("hex");
 };
+
+const softDelete = require("../softDelete");
+userSchema.plugin(softDelete);
 
 module.exports = mongoose.models.User || mongoose.model("User", userSchema);

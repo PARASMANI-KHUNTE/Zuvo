@@ -2,7 +2,7 @@ const dotenv = require("dotenv");
 dotenv.config();
 const express = require("express");
 const { trace, context, propagation } = require("@opentelemetry/api");
-const { logger, connectRedis, MessageBus, redisClient, connectDB, initTracing, metrics, faultInjection, HealthCheck } = require("@zuvo/shared");
+const { logger, connectRedis, MessageBus, redisClient, connectDB, initTracing, metrics, faultInjection, HealthCheck, internalServices, models } = require("@zuvo/shared");
 process.env.SERVICE_NAME = process.env.SERVICE_NAME || "worker-service";
 
 // Initialize Tracing FIRST
@@ -128,11 +128,73 @@ const startWorker = async () => {
 };
 
 
+const processNotification = async (payload) => {
+    const { userId, type, actorId, content, targetId, targetImage } = payload;
+    if (!userId) return;
+
+    // Validate type against schema enum: ["like", "follow", "comment", "system", "mention"]
+    const validTypes = ["like", "follow", "comment", "system", "mention"];
+    const normalizedType = (type || "system").toLowerCase();
+    const finalType = validTypes.includes(normalizedType) ? normalizedType : "system";
+
+    logger.info(`Processing ${finalType} notification for user ${userId}`);
+
+    try {
+        // 1. Enrich Actor Data
+        let actorData = { id: actorId, name: "Someone", username: "unknown" };
+        if (actorId) {
+            try {
+                const profile = await internalServices.getUserProfile(actorId);
+                if (profile) {
+                    actorData = {
+                        id: profile.id || profile._id,
+                        name: profile.name,
+                        username: profile.username,
+                        avatar: profile.avatar
+                    };
+                }
+            } catch (enrichErr) {
+                logger.warn(`Failed to enrich actor ${actorId}: ${enrichErr.message}`);
+            }
+        }
+
+        // 2. Persist to MongoDB
+        const Notification = models.Notification();
+        const notification = await Notification.create({
+            userId,
+            type: finalType,
+            actor: actorData,
+            content,
+            targetId: targetId || null,
+            targetImage: targetImage || null,
+            read: false
+        });
+
+        // 3. Publish to Redis for Real-time relay
+        const socketPayload = {
+            _id: notification._id,
+            userId,
+            type: finalType.toUpperCase(),
+            notificationType: finalType.toUpperCase(),
+            actor: actorData,
+            content,
+            targetId,
+            targetImage,
+            createdAt: new Date().toISOString()
+        };
+
+        await redisClient.publish("notifications", JSON.stringify(socketPayload));
+        logger.info(`Notification delivered to relay for user ${userId}`);
+    } catch (err) {
+        logger.error(`Error in processNotification: ${err.message}`, err);
+        throw err; // Retry via worker loop
+    }
+};
+
 const handleTask = async (task) => {
     switch (task.type) {
         case "MEDIA_COMPRESSION":
             logger.info("Compressing media in background...");
-            // Simulate work
             await new Promise(resolve => setTimeout(resolve, 2000));
             break;
         case "FEED_FANOUT":
@@ -140,27 +202,14 @@ const handleTask = async (task) => {
             await new Promise(resolve => setTimeout(resolve, 1000));
             break;
         case "NOTIFICATION":
-            logger.info(`Sending ${task.notificationType} notification to user ${task.userId}`);
-
-            // Persist to MongoDB
-            try {
-                const { models } = require("@zuvo/shared");
-                const Notification = models.Notification();
-                await Notification.create({
-                    userId: task.userId,
-                    type: (task.notificationType || "system").toLowerCase(),
-                    actor: task.actorId ? { id: task.actorId } : task.actor,
-                    content: task.content,
-                    targetId: task.targetId,
-                    targetImage: task.targetImage,
-                    read: false
-                });
-            } catch (persistErr) {
-                logger.error(`Failed to persist notification: ${persistErr.message}`);
-                // Continue to publish even if persistence fails (better to deliver live than nothing)
-            }
-
-            await redisClient.publish("notifications", JSON.stringify(task));
+            await processNotification({
+                userId: task.userId,
+                type: task.notificationType || "system",
+                actorId: task.actorId,
+                content: task.content,
+                targetId: task.targetId,
+                targetImage: task.targetImage
+            });
             break;
         case "SEARCH_INDEX":
             logger.info(`Indexing post ${task.postId} for search...`);
@@ -169,13 +218,24 @@ const handleTask = async (task) => {
         case "LIKE_TOGGLE":
             logger.info(`Syncing like for post ${task.postId}`);
             try {
-                const { models } = require("@zuvo/shared");
                 const Post = models.Post();
-                // Increment/Decrement logic based on action
-                const increment = task.action === "like" ? 1 : -1;
-                await Post.findByIdAndUpdate(task.postId, {
-                    $inc: { likesCount: increment }
-                });
+                const likesDelta = Number(task.likesDelta) || 0;
+                if (likesDelta !== 0) {
+                    const post = await Post.findByIdAndUpdate(task.postId, {
+                        $inc: { likesCount: likesDelta }
+                    }, { new: true });
+
+                    if (likesDelta > 0 && post && post.author.toString() !== task.userId) {
+                        await processNotification({
+                            userId: post.author.toString(),
+                            type: "like",
+                            actorId: task.userId,
+                            content: `liked your post`,
+                            targetId: task.postId,
+                            targetImage: post.media?.[0]?.url
+                        });
+                    }
+                }
             } catch (err) {
                 logger.error("Failed to sync like to DB", err);
                 throw err;
@@ -184,7 +244,6 @@ const handleTask = async (task) => {
         case "COMMENT_CREATED":
             logger.info(`Syncing comment count for post ${task.postId}`);
             try {
-                const { models } = require("@zuvo/shared");
                 const Post = models.Post();
                 await Post.findByIdAndUpdate(task.postId, {
                     $inc: { commentsCount: 1 }
@@ -204,17 +263,14 @@ const handleTask = async (task) => {
         case "SAVE_CHAT_MESSAGE":
             logger.info(`Persisting chat message for conversation ${task.conversationId}`);
             try {
-                const { models } = require("@zuvo/shared");
                 const Message = models.Message();
                 const Conversation = models.Conversation();
-
                 const newMessage = await Message.create({
                     conversationId: task.conversationId,
                     sender: task.sender,
                     content: task.content,
                     attachments: task.attachments
                 });
-
                 await Conversation.findByIdAndUpdate(task.conversationId, {
                     lastMessage: newMessage._id
                 });
@@ -236,12 +292,17 @@ const handleTask = async (task) => {
         case "FOLLOW":
             logger.info(`Syncing follow counts for ${task.followerId} -> ${task.followingId}`);
             try {
-                const { models } = require("@zuvo/shared");
                 const User = models.User();
                 await Promise.all([
                     User.findByIdAndUpdate(task.followerId, { $inc: { followingCount: 1 } }),
                     User.findByIdAndUpdate(task.followingId, { $inc: { followersCount: 1 } })
                 ]);
+                await processNotification({
+                    userId: task.followingId,
+                    type: "follow",
+                    actorId: task.followerId,
+                    content: `started following you`
+                });
             } catch (err) {
                 logger.error("Failed to sync follow counts", err);
             }
@@ -249,7 +310,6 @@ const handleTask = async (task) => {
         case "UNFOLLOW":
             logger.info(`Syncing unfollow counts for ${task.followerId} -> ${task.followingId}`);
             try {
-                const { models } = require("@zuvo/shared");
                 const User = models.User();
                 await Promise.all([
                     User.findByIdAndUpdate(task.followerId, { $inc: { followingCount: -1 } }),
@@ -371,3 +431,58 @@ const startChatGDPRListener = async () => {
 
 if (process.env.SERVICE_NAME === "blog-service") startBlogGDPRListener();
 if (process.env.SERVICE_NAME === "chat-service") startChatGDPRListener();
+
+// GDPR Listener for Interactions Service
+const startInteractionsGDPRListener = async () => {
+    await MessageBus.createConsumerGroup("zuvo_tasks", "interactions_gdpr_group");
+    while (true) {
+        try {
+            const results = await redisClient.xReadGroup("interactions_gdpr_group", "interactions_worker", { key: "zuvo_tasks", id: ">" }, { COUNT: 1, BLOCK: 5000 });
+            if (results) {
+                for (const stream of results) {
+                    for (const message of stream.messages) {
+                        const { id, message: data } = message;
+                        const task = JSON.parse(data.data);
+                        if (task.type === "GDPR_USER_DELETE") {
+                            const Relationship = require("./src/models/Relationship");
+                            const Comment = models.Comment();
+                            logger.info(`GDPR: Scrubbing Interactions data for user ${task.userId}`);
+                            await Promise.all([
+                                Relationship.deleteMany({ $or: [{ follower: task.userId }, { following: task.userId }] }),
+                                Comment.updateMany({ user: task.userId }, { content: "[DELETED]", isDeleted: true })
+                            ]);
+                        }
+                        await redisClient.xAck("zuvo_tasks", "interactions_gdpr_group", id);
+                    }
+                }
+            }
+        } catch (err) { logger.error("GDPR Listener Error (Interactions)", err); await new Promise(r => setTimeout(r, 5000)); }
+    }
+};
+
+// GDPR Listener for Realtime Service (Notifications)
+const startRealtimeGDPRListener = async () => {
+    await MessageBus.createConsumerGroup("zuvo_tasks", "realtime_gdpr_group");
+    while (true) {
+        try {
+            const results = await redisClient.xReadGroup("realtime_gdpr_group", "realtime_worker", { key: "zuvo_tasks", id: ">" }, { COUNT: 1, BLOCK: 5000 });
+            if (results) {
+                for (const stream of results) {
+                    for (const message of stream.messages) {
+                        const { id, message: data } = message;
+                        const task = JSON.parse(data.data);
+                        if (task.type === "GDPR_USER_DELETE") {
+                            const Notification = models.Notification();
+                            logger.info(`GDPR: Scrubbing Realtime data for user ${task.userId}`);
+                            await Notification.deleteMany({ userId: task.userId });
+                        }
+                        await redisClient.xAck("zuvo_tasks", "realtime_gdpr_group", id);
+                    }
+                }
+            }
+        } catch (err) { logger.error("GDPR Listener Error (Realtime)", err); await new Promise(r => setTimeout(r, 5000)); }
+    }
+};
+
+if (process.env.SERVICE_NAME === "interactions-service") startInteractionsGDPRListener();
+if (process.env.SERVICE_NAME === "realtime-service") startRealtimeGDPRListener();

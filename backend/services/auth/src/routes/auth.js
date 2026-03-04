@@ -17,11 +17,12 @@ const {
     checkEmail,
     updateProfile,
     changePassword,
+    deleteAccount,
     getPublicProfile
 } = require("../controllers/auth");
 const passport = require("passport");
 const { registerSchema, loginSchema } = require("../validations/auth");
-const { authenticate, validator, rateLimiter } = require("@zuvo/shared");
+const { authenticate, validator, rateLimiter, logger } = require("@zuvo/shared");
 
 /**
  * @openapi
@@ -65,8 +66,30 @@ router.post("/login", validator(loginSchema), login);
  *   get:
  *     tags: [Auth]
  *     summary: Initiate Google OAuth flow
+ *     parameters:
+ *       - in: query
+ *         name: mobile
+ *         schema:
+ *           type: boolean
+ *         description: Set to true if initiating from the mobile app
  */
-router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+router.get("/google", (req, res, next) => {
+    const isMobile = req.query.mobile === 'true';
+    const clientRedirectUri = req.query.redirect_uri;
+
+    // Construct state as a JSON string to pass multiple values
+    const state = JSON.stringify({
+        platform: isMobile ? 'mobile' : 'web',
+        redirect_uri: clientRedirectUri || null
+    });
+
+    logger.info(`OAuth: Google flow started`);
+
+    passport.authenticate("google", {
+        scope: ["profile", "email"],
+        state: Buffer.from(state).toString('base64')
+    })(req, res, next);
+});
 
 /**
  * @openapi
@@ -142,6 +165,7 @@ router.post("/refresh-token", refreshToken);
  */
 router.get("/me", authenticate, rateLimiter(3600, 500), getMe);
 router.put("/profile", authenticate, rateLimiter(3600, 500), updateProfile);
+router.delete("/profile", authenticate, rateLimiter(3600, 500), deleteAccount);
 router.put("/change-password", authenticate, rateLimiter(3600, 500), changePassword);
 router.get("/profile/:username", rateLimiter(3600, 500), getPublicProfile);
 

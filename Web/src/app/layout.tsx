@@ -3,6 +3,9 @@ import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 
 import { AuthProvider } from "@/context/AuthContext";
+import { ToastProvider } from "@/context/ToastContext";
+import { ConfirmationProvider } from "@/context/ConfirmationContext";
+import { SocketProvider } from "@/context/SocketContext";
 import LayoutWrapper from "./components/LayoutWrapper";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -22,7 +25,13 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.variable} ${outfit.variable} font-sans antialiased pt-24 pb-12`}>
         <AuthProvider>
-          <LayoutWrapper>{children}</LayoutWrapper>
+          <ConfirmationProvider>
+            <ToastProvider>
+              <SocketProvider>
+                <LayoutWrapper>{children}</LayoutWrapper>
+              </SocketProvider>
+            </ToastProvider>
+          </ConfirmationProvider>
         </AuthProvider>
       </body>
     </html>

@@ -1,0 +1,51 @@
+name: Zuvo Mobile CI/CD
+
+on:
+  push:
+    branches: [ reactnativeapp, production ]
+  pull_request:
+    branches: [ reactnativeapp ]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: MobileApp/ZuvoMobile/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd MobileApp/ZuvoMobile
+          npm install
+
+      - name: Run lint
+        run: |
+          cd MobileApp/ZuvoMobile
+          npm run lint
+
+      - name: Run tests
+        run: |
+          cd MobileApp/ZuvoMobile
+          npm run test --if-present
+
+  build-android:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/production'
+    steps:
+      - uses: actions/checkout@v3
+      - name: set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
+      - name: Build Android Release
+        run: |
+          cd MobileApp/ZuvoMobile/android
+          ./gradlew assembleRelease

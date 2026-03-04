@@ -1,6 +1,16 @@
 const { asyncHandler, logger } = require("@zuvo/shared");
 const { cloudinary } = require("../configs/cloudinary");
 
+const isMediaOwner = (req, publicId) => {
+    const userId = (req.user?.id || req.user?._id || "").toString();
+    const role = req.user?.role;
+    if (!userId) return false;
+    if (role === "admin") return true;
+
+    const lastSegment = (publicId || "").split("/").pop();
+    return lastSegment.startsWith(`usr_${userId}__`);
+};
+
 /**
  * @desc    Upload single file (image or video)
  * @route   POST /api/v1/media/upload
@@ -32,6 +42,10 @@ exports.deleteFile = asyncHandler(async (req, res, next) => {
     const { publicId } = req.params;
     const resourceType = req.query.type || "image";
 
+    if (!isMediaOwner(req, publicId)) {
+        return res.status(403).json({ success: false, message: "Not authorized to delete this file" });
+    }
+
     const result = await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
 
     if (result.result !== "ok") {
@@ -49,6 +63,10 @@ exports.deleteFile = asyncHandler(async (req, res, next) => {
 exports.getDownloadUrl = asyncHandler(async (req, res, next) => {
     const { publicId } = req.params;
     const resourceType = req.query.type || "image";
+
+    if (!isMediaOwner(req, publicId)) {
+        return res.status(403).json({ success: false, message: "Not authorized to access this file" });
+    }
 
     // Generate a signed, time-limited URL (1 hour expiry)
     const signedUrl = cloudinary.url(publicId, {

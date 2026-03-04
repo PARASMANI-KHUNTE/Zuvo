@@ -1,6 +1,4 @@
-"use client";
-import React from "react";
-import { useAuth } from "@/context/AuthContext";
+import { usePathname } from "next/navigation";
 import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
 import { ModalProvider } from "@/context/ModalContext";
@@ -8,16 +6,19 @@ import ComposeModal from "./ComposeModal";
 
 export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, loading, user } = useAuth();
+    const pathname = usePathname();
+
+    const isAuthPage = pathname?.startsWith("/auth");
 
     return (
         <ModalProvider>
-            <Navbar />
-            {!loading && isAuthenticated && <Sidebar />}
+            {!isAuthPage && <Navbar />}
+            {!isAuthPage && !loading && isAuthenticated && <Sidebar />}
 
             {/* Mobile Bottom Nav */}
-            {!loading && isAuthenticated && <MobileNav user={user} />}
+            {!isAuthPage && !loading && isAuthenticated && <MobileNav user={user} />}
 
-            <div className={`${!loading && isAuthenticated ? "lg:pl-80 pb-20 lg:pb-0" : ""} pr-6 pl-6 lg:pl-0 max-w-7xl mx-auto transition-all`}>
+            <div className={`${!isAuthPage && !loading && isAuthenticated ? "lg:pl-80 pb-20 lg:pb-0" : ""} ${!isAuthPage ? "pr-6 pl-6 lg:pl-0 pt-24" : ""} max-w-7xl mx-auto transition-all`}>
                 {children}
             </div>
 
