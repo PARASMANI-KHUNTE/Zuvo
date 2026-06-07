@@ -28,19 +28,27 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
     const [liking, setLiking] = useState(false);
 
     React.useEffect(() => {
+        const abortController = new AbortController();
+
         const loadData = async () => {
-            setLoading(true);
-            const [postData, commentData] = await Promise.all([
-                fetchPostById(params.id),
-                fetchComments(params.id)
-            ]);
-            setPost(postData);
-            setLikeCount(postData?.likesCount || 0);
-            setIsLiked(!!postData?.isLiked); // Initialize from server
-            setComments(commentData);
-            setLoading(false);
+            try {
+                setLoading(true);
+                const [postData, commentData] = await Promise.all([
+                    fetchPostById(params.id),
+                    fetchComments(params.id)
+                ]);
+                setPost(postData);
+                setLikeCount(postData?.likesCount || 0);
+                setIsLiked(!!postData?.isLiked); // Initialize from server
+                setComments(commentData);
+                setLoading(false);
+            } catch (err: any) {
+                if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
+            }
         };
         loadData();
+
+        return () => abortController.abort();
     }, [params.id, fetchPostById, fetchComments]);
 
     const handleLike = async (e: React.MouseEvent) => {
@@ -309,7 +317,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
 }
 
 // Extracted Nested Comment Component
-function CommentItem({ comment, postId, currentUser, depth = 0 }: { comment: any; postId: string; currentUser: any; depth?: number }) {
+const CommentItem = React.memo(function CommentItem({ comment, postId, currentUser, depth = 0 }: { comment: any; postId: string; currentUser: any; depth?: number }) {
     const { fetchReplies, addComment } = usePosts();
     const [replies, setReplies] = useState<any[]>([]);
     const [loadingReplies, setLoadingReplies] = useState(false);
@@ -453,4 +461,4 @@ function CommentItem({ comment, postId, currentUser, depth = 0 }: { comment: any
             )}
         </motion.div>
     );
-}
+});

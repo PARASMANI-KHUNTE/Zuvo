@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
 import { Heart, MessageCircle, Share2, ArrowLeft, Loader2, Music2, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import apiClient from "@/lib/api";

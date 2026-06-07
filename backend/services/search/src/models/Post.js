@@ -63,4 +63,9 @@ postSchema.pre("save", function () {
 
 postSchema.plugin(softDelete);
 
+postSchema.index({ author: 1 });
+postSchema.index({ tags: 1 });
+postSchema.index({ status: 1, createdAt: -1 });
+postSchema.index({ likesCount: -1, createdAt: -1 });
+
 module.exports = mongoose.models.Post || mongoose.model("Post", postSchema);

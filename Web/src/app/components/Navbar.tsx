@@ -116,7 +116,7 @@ export default function Navbar() {
     );
 }
 
-function NavIconLink({ href, icon, title, onClick }: { href: string; icon: React.ReactNode; title: string; onClick?: () => void }) {
+const NavIconLink = React.memo(function NavIconLink({ href, icon, title, onClick }: { href: string; icon: React.ReactNode; title: string; onClick?: () => void }) {
     return (
         <Link
             href={href}
@@ -127,4 +127,4 @@ function NavIconLink({ href, icon, title, onClick }: { href: string; icon: React
             {icon}
         </Link>
     );
-}
+});

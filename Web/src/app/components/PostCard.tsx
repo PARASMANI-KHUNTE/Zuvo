@@ -1,9 +1,9 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
-import Image from "next/image";
 import { Heart, MessageCircle, Share2, MoreHorizontal, Bookmark, EyeOff, Edit3, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import apiClient from "@/lib/api";
 import { useToast } from "@/context/ToastContext";
 import { useConfirm } from "@/context/ConfirmationContext";
@@ -234,7 +234,7 @@ const PostCard = React.memo(function PostCard({ id, author, avatar, content, ima
                 {(media && media.length > 0) ? (
                     <div className="space-y-2 mt-2">
                         {media.map((item, idx) => (
-                            <div key={idx} className="rounded-2xl overflow-hidden border border-white/5 bg-slate-900/50">
+                            <div key={idx} className="rounded-2xl overflow-hidden border border-white/5 bg-slate-900/50 relative">
                                 {item.type === "image" ? (
                                     <Image src={item.url} alt="Post content" width={800} height={450} unoptimized className="w-full h-auto object-cover max-h-[450px]" />
                                 ) : item.type === "video" ? (
@@ -264,7 +264,7 @@ const PostCard = React.memo(function PostCard({ id, author, avatar, content, ima
                         ))}
                     </div>
                 ) : image && (
-                    <div className="rounded-2xl overflow-hidden border border-white/5 mt-2">
+                    <div className="rounded-2xl overflow-hidden border border-white/5 mt-2 relative">
                         <Image src={image} alt="Post content" width={800} height={400} unoptimized className="w-full h-auto object-cover max-h-[400px]" />
                     </div>
                 )}
@@ -311,7 +311,7 @@ const PostCard = React.memo(function PostCard({ id, author, avatar, content, ima
             </div>
         </motion.div>
     );
-}
+});
 
 const ActionButton = React.memo(function ActionButton({ icon, count, color, onClick, disabled }: { icon: React.ReactNode; count?: number; color?: string; onClick?: (e: React.MouseEvent) => void; disabled?: boolean }) {
     return (
@@ -324,5 +324,6 @@ const ActionButton = React.memo(function ActionButton({ icon, count, color, onCl
             {count !== undefined && <span className="text-xs font-medium">{count}</span>}
         </button>
     );
-}
+});
 
+export default PostCard;

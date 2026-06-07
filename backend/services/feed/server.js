@@ -61,7 +61,7 @@ app.get("/api/v1/feed", authenticate, async (req, res, next) => {
         followingIds.push(userId.toString());
 
         // Get hidden posts for filtering
-        const hiddenRecords = await HiddenPost.find({ user: userId }).select("post");
+        const hiddenRecords = await HiddenPost.find({ user: userId }).select("post").lean();
         const hiddenPostIds = hiddenRecords.map(h => h.post.toString());
 
         // Fetch posts with filtering
@@ -79,11 +79,13 @@ app.get("/api/v1/feed", authenticate, async (req, res, next) => {
         const posts = await Post.find(filter)
             .sort({ createdAt: -1 })
             .skip(skip)
-            .limit(limit);
+            .limit(limit)
+            .select('title slug author tags content media createdAt likesCount commentsCount status')
+            .lean();
 
         // Enrich with author profiles
         const postsWithAuthors = await Promise.all(posts.map(async (post) => {
-            const postObj = post.toObject();
+            const postObj = { ...post };
             postObj.author = await internalServices.getUserProfile(post.author);
             return postObj;
         }));

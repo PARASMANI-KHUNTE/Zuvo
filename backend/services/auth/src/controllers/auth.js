@@ -82,7 +82,8 @@ exports.searchInternalUsers = asyncHandler(async (req, res, next) => {
     const users = await User.find(query)
         .limit(parseInt(limit))
         .skip(parseInt(skip))
-        .select("name username avatar");
+        .select("name username avatar")
+        .lean();
 
     res.status(200).json({
         success: true,
@@ -105,7 +106,7 @@ exports.register = asyncHandler(async (req, res, next) => {
     //     return res.status(403).json({ success: false, message: "User seat limit reached (Max 3). Contact administrator." });
     // }
 
-    const userExists = await User.findOne({ $or: [{ email }, { username }] });
+    const userExists = await User.findOne({ $or: [{ email }, { username }] }).select('_id').lean();
     if (userExists) {
         return res.status(400).json({ success: false, message: "User already exists" });
     }
@@ -381,7 +382,9 @@ exports.googleAuthSuccess = asyncHandler(async (req, res, next) => {
 // @route   GET /api/v1/auth/me
 exports.getMe = asyncHandler(async (req, res, next) => {
     logger.info(`getMe: ID: ${req.user?._id || req.user?.id}`);
-    const user = await User.findById(req.user?._id || req.user?.id);
+    const user = await User.findById(req.user?._id || req.user?.id)
+        .select('-refreshTokens -verificationToken -resetPasswordHash -otpAttempts -otpLockedUntil -deletionScheduledAt -accountStatus -resetPasswordExpires -googleId')
+        .lean();
     res.status(200).json({ success: true, data: user });
 });
 
@@ -411,21 +414,23 @@ exports.updateProfile = asyncHandler(async (req, res, next) => {
 
 // @route   GET /api/v1/auth/profile/:username
 exports.getPublicProfile = asyncHandler(async (req, res, next) => {
-    const user = await User.findOne({ username: req.params.username.toLowerCase() });
+    const user = await User.findOne({ username: req.params.username.toLowerCase() })
+        .select('-refreshTokens -verificationToken -resetPasswordHash -otpAttempts -otpLockedUntil -deletionScheduledAt -accountStatus -resetPasswordExpires -googleId -password')
+        .lean();
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
     res.status(200).json({ success: true, data: user });
 });
 
 // @route   GET /api/v1/auth/internal/user/:id
 exports.getInternalUser = asyncHandler(async (req, res, next) => {
-    const user = await User.findById(req.params.id);
+    const user = await User.findById(req.params.id).select('-refreshTokens -verificationToken -resetPasswordHash -password -otpAttempts -otpLockedUntil').lean();
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
     res.status(200).json({ success: true, data: user });
 });
 
 // @route   GET /api/v1/auth/check-username/:username
 exports.checkUsername = asyncHandler(async (req, res, next) => {
-    const user = await User.findOne({ username: req.params.username.toLowerCase() });
+    const user = await User.findOne({ username: req.params.username.toLowerCase() }).select('_id').lean();
     res.status(200).json({ success: true, available: !user });
 });
 
@@ -436,13 +441,13 @@ exports.getInternalUsers = asyncHandler(async (req, res, next) => {
         return res.status(400).json({ success: false, message: "ids array is required" });
     }
 
-    const users = await User.find({ _id: { $in: ids } }).select("name username avatar");
+    const users = await User.find({ _id: { $in: ids } }).select("name username avatar").lean();
     res.status(200).json({ success: true, data: users });
 });
 
 // @route   GET /api/v1/auth/check-email/:email
 exports.checkEmail = asyncHandler(async (req, res, next) => {
-    const user = await User.findOne({ email: req.params.email.toLowerCase() });
+    const user = await User.findOne({ email: req.params.email.toLowerCase() }).select('_id').lean();
     res.status(200).json({ success: true, available: !user });
 });
 

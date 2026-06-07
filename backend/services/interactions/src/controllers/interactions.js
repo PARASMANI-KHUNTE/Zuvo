@@ -629,11 +629,19 @@ exports.getFollowers = asyncHandler(async (req, res, next) => {
     // Filter out profiles with 'Unknown User' if desired, or keep as is.
     // We'll also check if the current user is following these people
     const currentUserId = req.user?.id || req.user?._id;
-    const enrichedProfiles = await Promise.all(profiles.map(async (profile) => {
-        const profileId = profile.id || profile._id;
-        const isFollowing = currentUserId ? await Relationship.exists({ follower: currentUserId, following: profileId }) : false;
-        return { ...profile, isFollowing: !!isFollowing };
-    }));
+    let followingSet = new Set();
+    if (currentUserId && profiles.length > 0) {
+        const profileIds = profiles.map(p => p._id || p.id);
+        const existingRelationships = await Relationship.find({
+            follower: currentUserId,
+            following: { $in: profileIds }
+        }).select('following').lean();
+        followingSet = new Set(existingRelationships.map(r => r.following.toString()));
+    }
+    const enrichedProfiles = profiles.map(profile => {
+        const profileId = (profile._id || profile.id).toString();
+        return { ...profile, isFollowing: followingSet.has(profileId) };
+    });
 
     res.status(200).json({
         success: true,
@@ -664,11 +672,19 @@ exports.getFollowing = asyncHandler(async (req, res, next) => {
     const profiles = await internalServices.getUsersProfiles(followingIds);
 
     const currentUserId = req.user?.id || req.user?._id;
-    const enrichedProfiles = await Promise.all(profiles.map(async (profile) => {
-        const profileId = profile.id || profile._id;
-        const isFollowing = currentUserId ? await Relationship.exists({ follower: currentUserId, following: profileId }) : false;
-        return { ...profile, isFollowing: !!isFollowing };
-    }));
+    let followingSet = new Set();
+    if (currentUserId && profiles.length > 0) {
+        const profileIds = profiles.map(p => p._id || p.id);
+        const existingRelationships = await Relationship.find({
+            follower: currentUserId,
+            following: { $in: profileIds }
+        }).select('following').lean();
+        followingSet = new Set(existingRelationships.map(r => r.following.toString()));
+    }
+    const enrichedProfiles = profiles.map(profile => {
+        const profileId = (profile._id || profile.id).toString();
+        return { ...profile, isFollowing: followingSet.has(profileId) };
+    });
 
     res.status(200).json({
         success: true,

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
-import { Search, TrendingUp, Users, Hash, Loader2, Loader as LoaderIcon } from "lucide-react";
+import { Search, TrendingUp, Users, Hash, Loader2 } from "lucide-react";
 import Image from "next/image";
 import apiClient from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";

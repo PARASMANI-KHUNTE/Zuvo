@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
-    Mail, Lock, User, ArrowRight, Github, AtSign,
+    Mail, Lock, User, ArrowRight, AtSign,
     Loader2, Eye, EyeOff, CheckCircle2, XCircle
 } from "lucide-react";
 import Image from "next/image";

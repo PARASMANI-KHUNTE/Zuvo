@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, ArrowRight, Github, Loader2, Eye, EyeOff, AlertTriangle } from "lucide-react";
+import { Mail, Lock, ArrowRight, Loader2, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";

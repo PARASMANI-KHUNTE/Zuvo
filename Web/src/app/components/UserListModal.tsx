@@ -35,14 +35,16 @@ export default function UserListModal({ isOpen, onClose, title, userId, type }: 
 
     useEffect(() => {
         if (isOpen) {
-            fetchUsers();
+            const abortController = new AbortController();
+            fetchUsers(abortController.signal);
+            return () => abortController.abort();
         }
     }, [isOpen, userId, type]);
 
-    const fetchUsers = async () => {
+    const fetchUsers = async (signal?: AbortSignal) => {
         try {
             setLoading(true);
-            const res = await apiClient.get(`/interactions/relationships/${userId}/${type}`);
+            const res = await apiClient.get(`/interactions/relationships/${userId}/${type}`, { signal });
             setUsers(res.data.data);
             // Track following state locally for instant UI updates
             const following = new Set<string>();
@@ -50,7 +52,8 @@ export default function UserListModal({ isOpen, onClose, title, userId, type }: 
                 if (u.isFollowing) following.add(u.id || u._id || "");
             });
             setFollowingIds(following);
-        } catch (err) {
+        } catch (err: any) {
+            if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
             console.error(`Failed to fetch ${type}`, err);
             toast(`Failed to load ${type}`, "error");
         } finally {

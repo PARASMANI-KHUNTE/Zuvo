@@ -85,7 +85,7 @@ interface SidebarItemProps {
     onClick?: () => void;
 }
 
-function SidebarItem({ icon, label, active = false, color = "text-slate-400", onClick }: SidebarItemProps) {
+const SidebarItem = React.memo(function SidebarItem({ icon, label, active = false, color = "text-slate-400", onClick }: SidebarItemProps) {
     return (
         <motion.button
             whileHover={{ x: 4 }}
@@ -97,4 +97,4 @@ function SidebarItem({ icon, label, active = false, color = "text-slate-400", on
             {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary shadow-neon-cyan" />}
         </motion.button>
     );
-}
+});

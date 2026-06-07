@@ -46,7 +46,7 @@ app.use(express.json());
  */
 app.get("/api/v1/notifications/preferences", authenticate, async (req, res) => {
     try {
-        const user = await User.findById(req.user._id || req.user.id).select("notificationPreferences");
+        const user = await User.findById(req.user._id || req.user.id).select("notificationPreferences").lean();
         const preferences = {
             ...DEFAULT_NOTIFICATION_PREFERENCES,
             ...(user?.notificationPreferences?.toObject?.() || user?.notificationPreferences || {})
@@ -101,10 +101,12 @@ app.get("/api/v1/notifications", authenticate, async (req, res) => {
         const userId = req.user._id || req.user.id;
         const notifications = await Notification.find({ userId })
             .sort({ createdAt: -1 })
-            .limit(50);
+            .limit(50)
+            .select('type read data createdAt userId targetId actorId notificationType')
+            .lean();
 
         const data = notifications.map(n => {
-            const obj = n.toObject();
+            const obj = { ...n };
             obj.type = (obj.type || "system").toUpperCase();
             obj.isRead = obj.read; // normalize for frontend
             return obj;

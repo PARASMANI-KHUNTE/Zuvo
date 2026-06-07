@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Image as ImageIcon, Tag, Globe, MessageSquare, Send, Loader2 } from "lucide-react";
+import { X, Image as ImageIcon, Globe, MessageSquare, Send, Loader2 } from "lucide-react";
 import { useModals } from "@/context/ModalContext";
 import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/lib/api";

@@ -17,11 +17,13 @@ exports.getConversations = asyncHandler(async (req, res) => {
         .populate('lastMessage')
         .sort({ updatedAt: -1 })
         .skip(skip)
-        .limit(limit);
+        .limit(limit)
+        .select('participants lastMessage isGroup groupName groupAdmin updatedAt createdAt')
+        .lean();
 
     // DECOUPLING FIX: Manually fetch participant profiles
     const conversationsWithParticipants = await Promise.all(conversations.map(async (conv) => {
-        const convObj = conv.toObject();
+        const convObj = { ...conv };
         convObj.participants = await Promise.all(
             conv.participants.map(pId => internalServices.getUserProfile(pId))
         );
@@ -43,7 +45,7 @@ exports.getMessages = asyncHandler(async (req, res) => {
     const skip = (page - 1) * limit;
     const conversationId = req.params.conversationId;
 
-    const conversation = await Conversation.findById(conversationId).select("participants");
+    const conversation = await Conversation.findById(conversationId).select("participants").lean();
     if (!conversation) {
         return res.status(404).json({ success: false, message: "Conversation not found" });
     }
@@ -62,11 +64,13 @@ exports.getMessages = asyncHandler(async (req, res) => {
     })
         .sort({ createdAt: 1 })
         .skip(skip)
-        .limit(limit);
+        .limit(limit)
+        .select('sender content attachments createdAt conversationId')
+        .lean();
 
     // DECOUPLING FIX: Manually fetch sender profiles
     const messagesWithSenders = await Promise.all(messages.map(async (msg) => {
-        const msgObj = msg.toObject();
+        const msgObj = { ...msg };
         msgObj.sender = await internalServices.getUserProfile(msg.sender);
         return msgObj;
     }));
@@ -122,17 +126,22 @@ exports.getOrCreateConversation = asyncHandler(async (req, res) => {
     let conversation = await Conversation.findOne({
         isGroup: false,
         participants: { $all: [currentUserId, recipientId] }
-    });
+    }).select('participants isGroup groupName groupAdmin createdAt updatedAt').lean();
 
     if (!conversation) {
         conversation = await Conversation.create({
             participants: [currentUserId, recipientId],
             isGroup: false
         });
+        const convObj = conversation.toObject();
+        convObj.participants = await Promise.all(
+            conversation.participants.map(pId => internalServices.getUserProfile(pId))
+        );
+        return res.status(200).json({ success: true, data: convObj });
     }
 
     // Enrich participants for the frontend
-    const convObj = conversation.toObject();
+    const convObj = { ...conversation };
     convObj.participants = await Promise.all(
         conversation.participants.map(pId => internalServices.getUserProfile(pId))
     );
@@ -159,7 +168,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
         let conversation = await Conversation.findOne({
             isGroup: false,
             participants: { $all: [currentUserId, recipientId] }
-        });
+        }).select('_id').lean();
 
         if (!conversation) {
             conversation = await Conversation.create({
@@ -174,7 +183,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: "conversationId or recipientId is required" });
     }
 
-    const conversation = await Conversation.findById(targetConversationId).select("participants");
+    const conversation = await Conversation.findById(targetConversationId).select("participants").lean();
     if (!conversation) {
         return res.status(404).json({ success: false, message: "Conversation not found" });
     }

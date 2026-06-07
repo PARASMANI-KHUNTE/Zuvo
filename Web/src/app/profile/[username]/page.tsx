@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
-import { Calendar, MapPin, Link as LinkIcon, MessageCircle, UserPlus, UserMinus, Loader2, Image as ImageIcon } from "lucide-react";
+import { Calendar, MapPin, Link as LinkIcon, MessageCircle, UserPlus, UserMinus, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import PostCard from "@/app/components/PostCard";
 import UserListModal from "@/app/components/UserListModal";

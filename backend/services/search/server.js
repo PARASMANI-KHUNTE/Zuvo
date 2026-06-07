@@ -53,10 +53,11 @@ app.get("/api/v1/search", rateLimiter(3600, 500), async (req, res, next) => {
                 .select("title slug tags author media image createdAt")
                 .sort({ createdAt: -1 })
                 .skip(skip)
-                .limit(parseInt(limit));
+                .limit(parseInt(limit))
+                .lean();
 
             const postsWithAuthors = await Promise.all(posts.map(async (post) => {
-                const postObj = post.toObject();
+                const postObj = { ...post };
                 postObj.author = await internalServices.getUserProfile(post.author);
                 if (postObj.author && postObj.author._id) {
                     postAuthorIds.add(postObj.author._id.toString());
@@ -117,7 +118,9 @@ app.get("/api/v1/search/trending", async (req, res, next) => {
             createdAt: { $gte: sevenDaysAgo }
         })
             .sort({ likesCount: -1, createdAt: -1 })
-            .limit(5);
+            .limit(5)
+            .select('tags title likesCount commentsCount')
+            .lean();
 
         // Map to simpler format for sidebars
         const trends = trendingPosts.map(p => ({

@@ -11,17 +11,24 @@ export default function TrendingSidebar() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        const abortController = new AbortController();
+
         const fetchTrends = async () => {
             try {
-                const res = await apiClient.get("/search/trending");
+                const res = await apiClient.get("/search/trending", {
+                    signal: abortController.signal
+                });
                 setTrends(res.data.data);
-            } catch (err) {
+            } catch (err: any) {
+                if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
                 console.error("Failed to fetch trends", err);
             } finally {
                 setLoading(false);
             }
         };
         fetchTrends();
+
+        return () => abortController.abort();
     }, []);
 
     return (

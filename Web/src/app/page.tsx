@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { ArrowRight, Zap, Shield, Globe, Loader2, TrendingUp, Users as UsersIcon, Hash } from "lucide-react";
+import { ArrowRight, Zap, Shield, Globe, Loader2 } from "lucide-react";
 import { usePosts } from "@/hooks/usePosts";
 import PostCard from "./components/PostCard";
 import CreatePost from "./components/CreatePost";
@@ -153,7 +153,7 @@ export default function Home() {
   );
 }
 
-function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
+const FeatureCard = React.memo(function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
   return (
     <div className="glass-panel p-8 text-left space-y-4 hover:border-white/20 transition-all group">
       <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -163,4 +163,4 @@ function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: stri
       <p className="text-slate-400 leading-relaxed">{desc}</p>
     </div>
   );
-}
+});

@@ -2,9 +2,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import {
-    User, Mail, Camera, Lock, Eye, EyeOff, Bell,
-    Shield, Globe, Trash2, CheckCircle2, AlertTriangle,
-    Loader2, ChevronRight, Share2, Info, LogOut, Twitter, Instagram, Github, MapPin, AlertCircle, Save
+    User, Camera, Lock, Bell,
+    Globe, Trash2, CheckCircle2, AlertTriangle,
+    Loader2, Twitter, Instagram, Github, MapPin, AlertCircle, Save
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";

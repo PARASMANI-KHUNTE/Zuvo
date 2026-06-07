@@ -46,7 +46,7 @@ class MigrationRunner {
             const files = fs.readdirSync(this.migrationsDir).filter(f => f.endsWith(".js")).sort();
 
             for (const file of files) {
-                const alreadyRun = await MigrationModel.findOne({ name: file, status: "completed" });
+                const alreadyRun = await MigrationModel.findOne({ name: file, status: "completed" }).lean();
                 if (alreadyRun) continue;
 
                 logger.info(`Running migration: ${file}`);
@@ -81,7 +81,7 @@ class MigrationRunner {
         if (!(await this.acquireLock())) return;
 
         try {
-            const lastMigration = await MigrationModel.findOne({ status: "completed" }).sort({ executedAt: -1 });
+            const lastMigration = await MigrationModel.findOne({ status: "completed" }).sort({ executedAt: -1 }).lean();
             if (!lastMigration) {
                 logger.info("No migrations to rollback.");
                 return;

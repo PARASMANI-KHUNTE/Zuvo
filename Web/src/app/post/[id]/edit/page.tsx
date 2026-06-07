@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft, Image as ImageIcon, Send, Loader2, X, Save } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon, Loader2, X, Save } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import apiClient from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";

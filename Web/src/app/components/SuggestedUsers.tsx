@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Users as UsersIcon, Loader2, UserPlus, UserMinus } from "lucide-react";
+import { Users as UsersIcon, Loader2 } from "lucide-react";
 import apiClient from "@/lib/api";
 import Link from "next/link";
 import Image from "next/image";
@@ -10,17 +10,24 @@ export default function SuggestedUsers() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        const abortController = new AbortController();
+
         const fetchSuggested = async () => {
             try {
-                const res = await apiClient.get("/search/suggested-users");
+                const res = await apiClient.get("/search/suggested-users", {
+                    signal: abortController.signal
+                });
                 setUsers(res.data.data);
-            } catch (err) {
+            } catch (err: any) {
+                if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
                 console.error("Failed to fetch suggested users", err);
             } finally {
                 setLoading(false);
             }
         };
         fetchSuggested();
+
+        return () => abortController.abort();
     }, []);
 
     return (

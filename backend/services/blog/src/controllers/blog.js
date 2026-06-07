@@ -68,11 +68,13 @@ exports.getPosts = asyncHandler(async (req, res, next) => {
     const posts = await Post.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit);
+        .limit(limit)
+        .select('title slug author tags content media createdAt likesCount commentsCount status')
+        .lean();
 
     // DECOUPLING FIX: Manually compose author data via internal service call
     const postsWithAuthors = await Promise.all(posts.map(async (post) => {
-        const postObj = post.toObject();
+        const postObj = { ...post };
         postObj.author = await internalServices.getUserProfile(post.author);
         return postObj;
     }));
@@ -94,11 +96,11 @@ exports.getPost = asyncHandler(async (req, res, next) => {
 
     // Check if it's a valid ObjectId or a slug
     if (req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
-        post = await Post.findById(req.params.id);
+        post = await Post.findById(req.params.id).select('title slug author tags content media createdAt likesCount commentsCount status').lean();
     }
 
     if (!post) {
-        post = await Post.findOne({ slug: req.params.id });
+        post = await Post.findOne({ slug: req.params.id }).select('title slug author tags content media createdAt likesCount commentsCount status').lean();
     }
 
     if (!post) {
@@ -106,7 +108,7 @@ exports.getPost = asyncHandler(async (req, res, next) => {
     }
 
     // DECOUPLING FIX: Manually compose author data
-    const postWithAuthor = post.toObject();
+    const postWithAuthor = { ...post };
     postWithAuthor.author = await internalServices.getUserProfile(post.author);
 
     res.status(200).json({
@@ -119,7 +121,7 @@ exports.getPost = asyncHandler(async (req, res, next) => {
 // @route   PUT /api/v1/blogs/:id
 // @access  Private
 exports.updatePost = asyncHandler(async (req, res, next) => {
-    let post = await Post.findById(req.params.id);
+    let post = await Post.findById(req.params.id).lean();
 
     if (!post) {
         return res.status(404).json({ success: false, message: "Post not found" });
@@ -130,7 +132,7 @@ exports.updatePost = asyncHandler(async (req, res, next) => {
         return res.status(403).json({ success: false, message: "Not authorized to update this post" });
     }
 
-    const oldData = post.toObject();
+    const oldData = { ...post };
 
     const allowedFields = ["title", "content", "tags", "media", "status"];
     const updates = {};
@@ -201,7 +203,7 @@ exports.deletePost = asyncHandler(async (req, res, next) => {
 // @route   GET /api/v1/blogs/internal/:id
 // @access  Internal
 exports.getInternalPost = asyncHandler(async (req, res, next) => {
-    const post = await Post.findById(req.params.id).select("author title");
+    const post = await Post.findById(req.params.id).select("author title").lean();
     if (!post) {
         return res.status(404).json({ success: false, message: "Post not found" });
     }

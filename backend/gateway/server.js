@@ -18,6 +18,8 @@ initTracing("gateway");
 const http = require("http");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 
+const proxyAgent = new http.Agent({ keepAlive: true, maxSockets: 50, keepAliveMsecs: 30000 });
+
 dotenv.config();
 
 // Set service name for logger
@@ -84,6 +86,7 @@ const REALTIME_SERVICE_URL = process.env.REALTIME_SERVICE_URL || "http://localho
 const proxyConfig = (prefix, target) => ({
     target,
     changeOrigin: true,
+    agent: proxyAgent,
     pathFilter: (p) => p.startsWith(prefix),
     proxyTimeout: 60000,
     timeout: 60000,
@@ -143,6 +146,7 @@ const wsProxy = createProxyMiddleware({
     target: REALTIME_SERVICE_URL,
     ws: true,
     changeOrigin: true,
+    agent: proxyAgent,
     logger: logger,
     on: {
         error: (err, req, res) => {

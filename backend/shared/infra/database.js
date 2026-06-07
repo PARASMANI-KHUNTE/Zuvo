@@ -11,7 +11,16 @@ const connectDB = async () => {
             mongoURI = uri.endsWith('/') ? `${uri}${dbName}` : `${uri}/${dbName}`;
         }
 
-        await mongoose.connect(mongoURI);
+        await mongoose.connect(mongoURI, {
+            maxPoolSize: 10,
+            minPoolSize: 2,
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+            connectTimeoutMS: 10000,
+            retryWrites: true,
+            retryReads: true,
+            heartbeatFrequencyMS: 10000,
+        });
 
         // FIX I1: Use structured logger instead of console.log
         logger.info(`MongoDB connected: ${mongoURI}`);

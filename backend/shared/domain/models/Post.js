@@ -66,7 +66,7 @@ postSchema.pre("validate", async function () {
         }
         let slug = baseSlug;
         let counter = 1;
-        while (await mongoose.models.Post?.findOne({ slug, _id: { $ne: this._id } })) {
+        while (await mongoose.models.Post?.findOne({ slug, _id: { $ne: this._id } }).select('_id').lean()) {
             slug = `${baseSlug}-${counter}`;
             counter++;
         }
@@ -75,6 +75,11 @@ postSchema.pre("validate", async function () {
 });
 
 postSchema.plugin(softDelete);
+
+postSchema.index({ author: 1 });
+postSchema.index({ tags: 1 });
+postSchema.index({ status: 1, createdAt: -1 });
+postSchema.index({ likesCount: -1, createdAt: -1 });
 
 module.exports = mongoose.models.Post || mongoose.model("Post", postSchema);
 
