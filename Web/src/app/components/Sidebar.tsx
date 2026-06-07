@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import Image from "next/image";
 import { Home, Compass, Bell, MessageSquare, Settings, LogOut, User, Plus } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
@@ -52,9 +53,9 @@ export default function Sidebar() {
                 {user?.username && (
                     <SidebarItem
                         icon={
-                            <div className="w-5 h-5 rounded-full overflow-hidden bg-slate-700 border border-white/10 flex-shrink-0">
+                            <div className="w-5 h-5 rounded-full overflow-hidden bg-slate-700 border border-white/10 flex-shrink-0 relative">
                                 {user.avatar
-                                    ? <img src={user.avatar} alt="me" className="w-full h-full object-cover" />
+                                    ? <Image src={user.avatar} alt="me" fill unoptimized className="object-cover" />
                                     : <User className="w-full h-full p-0.5 text-slate-400" />
                                 }
                             </div>

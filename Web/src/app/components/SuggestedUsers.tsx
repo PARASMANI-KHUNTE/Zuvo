@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Users as UsersIcon, Loader2, UserPlus, UserMinus } from "lucide-react";
 import apiClient from "@/lib/api";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function SuggestedUsers() {
     const [users, setUsers] = useState<any[]>([]);
@@ -37,7 +38,9 @@ export default function SuggestedUsers() {
                 users.map((user) => (
                     <div key={user.id} className="flex items-center justify-between group">
                         <Link href={`/profile/${user.username}`} className="flex items-center gap-3 min-w-0">
-                            <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} className="w-8 h-8 rounded-full border border-white/10 object-cover" alt={user.name} />
+                            <div className="w-8 h-8 rounded-full border border-white/10 overflow-hidden relative">
+                                <Image src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} fill unoptimized className="object-cover" alt={user.name} />
+                            </div>
                             <div className="flex flex-col min-w-0">
                                 <span className="text-xs font-bold text-slate-200 truncate">{user.name}</span>
                                 <span className="text-[10px] text-slate-500">@{user.username}</span>

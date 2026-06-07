@@ -58,9 +58,19 @@ const postSchema = new mongoose.Schema({
 });
 
 // Create post slug from the title before saving
-postSchema.pre("save", function () {
+postSchema.pre("validate", async function () {
     if (this.isModified("title")) {
-        this.slug = slugify(this.title, { lower: true, strict: true });
+        let baseSlug = slugify(this.title, { lower: true, strict: true });
+        if (!baseSlug) {
+            baseSlug = `post-${Date.now()}`;
+        }
+        let slug = baseSlug;
+        let counter = 1;
+        while (await mongoose.models.Post?.findOne({ slug, _id: { $ne: this._id } })) {
+            slug = `${baseSlug}-${counter}`;
+            counter++;
+        }
+        this.slug = slug;
     }
 });
 

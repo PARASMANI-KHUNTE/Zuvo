@@ -1,7 +1,8 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, ArrowRight, Github, Loader2, Eye, EyeOff, AlertTriangle } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import apiClient from "@/lib/api";
@@ -9,7 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 
 const GOOGLE_OAUTH_URL = `${process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ?? "http://localhost:5000"}/api/v1/auth/google`;
 
-export default function LoginPage() {
+function LoginContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { checkAuth, login, isAuthenticated, loading: authLoading } = useAuth();
@@ -190,7 +191,7 @@ export default function LoginPage() {
                         href={GOOGLE_OAUTH_URL}
                         className="flex items-center justify-center gap-3 py-3 px-8 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-sm font-bold glass-panel group w-full"
                     >
-                        <img src="https://www.google.com/favicon.ico" className="w-4 h-4 grayscale group-hover:grayscale-0 transition-all" alt="Google" />
+                        <Image src="https://www.google.com/favicon.ico" width={16} height={16} className="w-4 h-4 grayscale group-hover:grayscale-0 transition-all" alt="Google" unoptimized />
                         Continue with Google
                     </a>
                 </div>
@@ -203,5 +204,13 @@ export default function LoginPage() {
                 </p>
             </motion.div>
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <LoginContent />
+        </Suspense>
     );
 }

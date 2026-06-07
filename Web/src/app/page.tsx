@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 import { ArrowRight, Zap, Shield, Globe, Loader2, TrendingUp, Users as UsersIcon, Hash } from "lucide-react";
 import { usePosts } from "@/hooks/usePosts";
 import PostCard from "./components/PostCard";

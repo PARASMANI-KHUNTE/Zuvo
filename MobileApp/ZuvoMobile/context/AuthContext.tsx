@@ -12,6 +12,7 @@ interface User {
 
 interface AuthContextType {
     user: User | null;
+    accessToken: string | null;
     isLoading: boolean;
     login: (token: string, userData?: any) => Promise<void>;
     logout: () => Promise<void>;
@@ -21,6 +22,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
+    const [accessToken, setAccessToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -31,6 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
             const token = await AsyncStorage.getItem('auth_token');
             if (token) {
+                setAccessToken(token);
                 // Option 1: Decode JWT to get user info if the payload has it
                 try {
                     const decoded: any = jwtDecode(token);
@@ -56,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const login = async (token: string, userData?: any) => {
         await AsyncStorage.setItem('auth_token', token);
+        setAccessToken(token);
 
         if (userData) {
             setUser(userData);
@@ -77,11 +81,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const logout = async () => {
         await AsyncStorage.removeItem('auth_token');
+        setAccessToken(null);
         setUser(null);
     };
 
     return (
-        <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+        <AuthContext.Provider value={{ user, accessToken, isLoading, login, logout }}>
             {children}
         </AuthContext.Provider>
     );

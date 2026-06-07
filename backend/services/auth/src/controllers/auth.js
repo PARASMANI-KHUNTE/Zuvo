@@ -274,6 +274,8 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
     const otp = crypto.randomInt(100000, 999999).toString();
     user.resetPasswordHash = user.hashToken(otp);
     user.resetPasswordExpires = Date.now() + 10 * 60 * 1000;
+    user.otpAttempts = 0;
+    user.otpLockedUntil = undefined;
     await user.save({ validateBeforeSave: false });
 
     try {
@@ -292,14 +294,29 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
 // @route   POST /api/v1/auth/reset-password
 exports.resetPassword = asyncHandler(async (req, res, next) => {
     const { email, otp, newPassword } = req.body;
-    const user = await User.findOne({ email }).select("+resetPasswordHash");
+    const user = await User.findOne({ email }).select("+resetPasswordHash +otpAttempts +otpLockedUntil");
     if (!user || user.resetPasswordExpires < Date.now()) return res.status(400).json({ success: false, message: "OTP expired" });
 
-    if (user.resetPasswordHash !== user.hashToken(otp)) return res.status(400).json({ success: false, message: "Invalid OTP" });
+    if (user.otpLockedUntil && user.otpLockedUntil > Date.now()) {
+        const remaining = Math.ceil((user.otpLockedUntil - Date.now()) / 1000);
+        return res.status(429).json({ success: false, message: `Too many attempts. Try again in ${remaining} seconds.` });
+    }
+
+    if (user.resetPasswordHash !== user.hashToken(otp)) {
+        user.otpAttempts = (user.otpAttempts || 0) + 1;
+        if (user.otpAttempts >= 5) {
+            user.otpLockedUntil = Date.now() + 15 * 60 * 1000;
+            user.otpAttempts = 0;
+        }
+        await user.save({ validateBeforeSave: false });
+        return res.status(400).json({ success: false, message: "Invalid OTP" });
+    }
 
     user.password = newPassword;
     user.resetPasswordHash = undefined;
     user.resetPasswordExpires = undefined;
+    user.otpAttempts = 0;
+    user.otpLockedUntil = undefined;
     await user.save();
     res.status(200).json({ success: true, message: "Reset successful" });
 });

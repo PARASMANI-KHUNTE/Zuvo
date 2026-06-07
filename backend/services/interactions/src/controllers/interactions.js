@@ -1,6 +1,7 @@
 const { asyncHandler, MessageBus, audit, internalServices, models, redisClient, logger } = require("@zuvo/shared");
 const Comment = models.Comment();
-const Relationship = require("../models/Relationship");
+const Relationship = models.Relationship();
+const Like = models.Like();
 
 /**
  * @desc    Add comment to a post
@@ -62,11 +63,11 @@ exports.addComment = asyncHandler(async (req, res, next) => {
  * FIX G3: Separate like/dislike counters to handle state transitions correctly
  */
 exports.toggleLike = asyncHandler(async (req, res, next) => {
-    const { postId, action } = req.body; // action: 'like' or 'dislike'
+    const { postId, action } = req.body; // action: 'like', 'unlike', or 'dislike'
     const userId = req.user.id || req.user._id;
 
-    if (!postId || !["like", "dislike"].includes(action)) {
-        return res.status(400).json({ success: false, message: "postId and action (like/dislike) are required" });
+    if (!postId || !["like", "unlike", "dislike"].includes(action)) {
+        return res.status(400).json({ success: false, message: "postId and action (like/unlike/dislike) are required" });
     }
 
     const likeKey = `post:${postId}:likes`;
@@ -74,9 +75,28 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
     const userVotedKey = `post:${postId}:user:${userId}:voted`;
 
     const existingVote = await redisClient.get(userVotedKey);
+    const existingPersistedVote = await Like.findOne({ user: userId, post: postId }).select('action').lean();
+    const currentVote = existingVote || existingPersistedVote?.action;
     let likesDelta = 0;
 
-    if (existingVote === action) {
+    if (action === "unlike") {
+        if (currentVote === "like") {
+            await redisClient.decr(likeKey);
+            likesDelta = -1;
+            await redisClient.del(userVotedKey);
+            await Like.deleteOne({ user: userId, post: postId });
+            await MessageBus.publish("zuvo_tasks", {
+                type: "LIKE_TOGGLE",
+                postId,
+                action: "unlike",
+                userId,
+                likesDelta
+            });
+        }
+        return res.status(200).json({ success: true, message: "like removed" });
+    }
+
+    if (currentVote === action) {
         // Undo the same vote (toggle off)
         if (action === "like") {
             await redisClient.decr(likeKey);
@@ -84,6 +104,7 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
         }
         else await redisClient.decr(dislikeKey);
         await redisClient.del(userVotedKey);
+        await Like.deleteOne({ user: userId, post: postId });
         await MessageBus.publish("zuvo_tasks", {
             type: "LIKE_TOGGLE",
             postId,
@@ -94,9 +115,9 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
         return res.status(200).json({ success: true, message: `${action} removed` });
     }
 
-    if (existingVote) {
+    if (currentVote) {
         // Switching vote: undo old vote first
-        if (existingVote === "like") {
+        if (currentVote === "like") {
             await redisClient.decr(likeKey);
             likesDelta -= 1;
         }
@@ -110,6 +131,11 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
     }
     else await redisClient.incr(dislikeKey);
     await redisClient.set(userVotedKey, action);
+    await Like.findOneAndUpdate(
+        { user: userId, post: postId },
+        { user: userId, post: postId, action },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     const [likes, dislikes] = await Promise.all([
         redisClient.get(likeKey),
@@ -139,7 +165,7 @@ exports.toggleLike = asyncHandler(async (req, res, next) => {
  */
 exports.generateShareLink = asyncHandler(async (req, res, next) => {
     const { postId } = req.params;
-    const shareUrl = `${process.env.CLIENT_URL || "http://localhost:3000"}/posts/${postId}?ref=app`;
+    const shareUrl = `${process.env.CLIENT_URL || "http://localhost:3000"}/post/${postId}?ref=app`;
 
     res.status(200).json({ success: true, data: { shareUrl } });
 });
@@ -223,7 +249,7 @@ exports.toggleFollow = asyncHandler(async (req, res, next) => {
     } catch (err) {
         // Handle race condition (duplicate key error)
         if (err.code === 11000) {
-            const retryExisting = await Relationship.findOne({ follower: followerId, following: userId });
+            const retryExisting = await Relationship.findOne({ follower: followerId, following: userId }).select('status').lean();
             return res.status(200).json({
                 success: true,
                 status: retryExisting?.status || "none",
@@ -242,7 +268,9 @@ exports.toggleFollow = asyncHandler(async (req, res, next) => {
 exports.getFollowRequests = asyncHandler(async (req, res, next) => {
     const userId = req.user.id || req.user._id;
     const requests = await Relationship.find({ following: userId, status: "requested" })
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .select('follower createdAt')
+        .lean();
 
     // Enrich with profiles via internal service
     const followerIds = requests.map(r => r.follower);
@@ -308,7 +336,7 @@ exports.getRelationships = asyncHandler(async (req, res, next) => {
     const [followersCount, followingCount, relationship] = await Promise.all([
         Relationship.countDocuments({ following: userId, status: "following" }),
         Relationship.countDocuments({ follower: userId, status: "following" }),
-        currentUserId ? Relationship.findOne({ follower: currentUserId, following: userId }) : Promise.resolve(null)
+        currentUserId ? Relationship.findOne({ follower: currentUserId, following: userId }).select('status').lean() : Promise.resolve(null)
     ]);
 
     res.status(200).json({
@@ -336,15 +364,20 @@ exports.getComments = asyncHandler(async (req, res, next) => {
     const comments = await Comment.find({ post: postId, parentComment: null })
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit);
+        .limit(limit)
+        .select('user content createdAt likesCount parentComment post')
+        .lean();
 
     // Enrich with user profiles in bulk (Fix N+1 query)
     const userIds = comments.map(c => c.user);
     const userProfiles = await internalServices.getUsersProfiles(userIds);
 
-    const enrichedComments = comments.map((comment, index) => {
-        const commentObj = comment.toObject();
-        commentObj.user = userProfiles[index];
+    const profileMap = new Map(userProfiles.map(p => [(p.id || p._id).toString(), p]));
+
+    const enrichedComments = comments.map(comment => {
+        const commentObj = { ...comment };
+        const userId = (comment.user?._id || comment.user).toString();
+        commentObj.user = profileMap.get(userId) || commentObj.user;
         return commentObj;
     });
 
@@ -364,14 +397,19 @@ exports.getReplies = asyncHandler(async (req, res, next) => {
     const { commentId } = req.params;
 
     const replies = await Comment.find({ parentComment: commentId })
-        .sort({ createdAt: 1 });
+        .sort({ createdAt: 1 })
+        .select('user content createdAt likesCount parentComment post')
+        .lean();
 
     const userIds = replies.map(r => r.user);
     const userProfiles = await internalServices.getUsersProfiles(userIds);
 
-    const enrichedReplies = replies.map((reply, index) => {
-        const replyObj = reply.toObject();
-        replyObj.user = userProfiles[index];
+    const profileMap = new Map(userProfiles.map(p => [(p.id || p._id).toString(), p]));
+
+    const enrichedReplies = replies.map(reply => {
+        const replyObj = { ...reply };
+        const userId = (reply.user?._id || reply.user).toString();
+        replyObj.user = profileMap.get(userId) || replyObj.user;
         return replyObj;
     });
 
@@ -382,8 +420,8 @@ exports.getReplies = asyncHandler(async (req, res, next) => {
     });
 });
 
-const SavedPost = require("../models/SavedPost");
-const HiddenPost = require("../models/HiddenPost");
+const SavedPost = models.SavedPost();
+const HiddenPost = models.HiddenPost();
 
 /**
  * @desc    Save or Unsave a post
@@ -398,7 +436,7 @@ exports.savePost = asyncHandler(async (req, res, next) => {
         return res.status(400).json({ success: false, message: "postId is required" });
     }
 
-    const existingSave = await SavedPost.findOne({ user: userId, post: postId });
+    const existingSave = await SavedPost.findOne({ user: userId, post: postId }).lean();
 
     if (existingSave) {
         await SavedPost.deleteOne({ _id: existingSave._id });
@@ -423,7 +461,9 @@ exports.getSavedPosts = asyncHandler(async (req, res, next) => {
     const savedRecords = await SavedPost.find({ user: userId })
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit);
+        .limit(limit)
+        .select('post')
+        .lean();
 
     const postIds = savedRecords.map(record => record.post);
 
@@ -431,6 +471,53 @@ exports.getSavedPosts = asyncHandler(async (req, res, next) => {
         success: true,
         count: savedRecords.length,
         data: { postIds }
+    });
+});
+
+/**
+ * @desc    Get posts liked by a user
+ * @route   GET /api/v1/interactions/liked-posts/:userId
+ * @access  Public
+ */
+exports.getLikedPosts = asyncHandler(async (req, res, next) => {
+    const { userId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    const Post = models.Post();
+
+    const likedRecords = await Like.find({ user: userId, action: "like" })
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select('post')
+        .lean();
+
+    const postIds = likedRecords.map(record => record.post);
+    const posts = await Post.find({ _id: { $in: postIds }, status: "published", isDeleted: { $ne: true } })
+        .select('title slug author tags media createdAt likesCount commentsCount content status')
+        .lean();
+    const postMap = new Map(posts.map(post => [post._id.toString(), post]));
+
+    const orderedPosts = likedRecords
+        .map(record => postMap.get(record.post.toString()))
+        .filter(Boolean);
+
+    const authorIds = [...new Set(orderedPosts.map(post => post.author.toString()))];
+    const profiles = await internalServices.getUsersProfiles(authorIds);
+    const profileMap = new Map(profiles.map(profile => [(profile.id || profile._id).toString(), profile]));
+
+    const data = orderedPosts.map(post => {
+        const postObj = { ...post };
+        postObj.author = profileMap.get(post.author.toString()) || postObj.author;
+        postObj.isLiked = true;
+        return postObj;
+    });
+
+    res.status(200).json({
+        success: true,
+        count: data.length,
+        data
     });
 });
 
@@ -463,11 +550,11 @@ exports.hidePost = asyncHandler(async (req, res, next) => {
  * @access  Private
  */
 exports.toggleCommentLike = asyncHandler(async (req, res, next) => {
-    const { commentId, action } = req.body; // action: 'like' or 'dislike'
+    const { commentId, action } = req.body; // action: 'like', 'unlike', or 'dislike'
     const userId = req.user.id || req.user._id;
 
-    if (!commentId || !["like", "dislike"].includes(action)) {
-        return res.status(400).json({ success: false, message: "commentId and action (like/dislike) are required" });
+    if (!commentId || !["like", "unlike", "dislike"].includes(action)) {
+        return res.status(400).json({ success: false, message: "commentId and action (like/unlike/dislike) are required" });
     }
 
     const comment = await Comment.findById(commentId);
@@ -479,6 +566,17 @@ exports.toggleCommentLike = asyncHandler(async (req, res, next) => {
     const userVotedKey = `comment:${commentId}:user:${userId}:voted`;
 
     const existingVote = await redisClient.get(userVotedKey);
+
+    if (action === "unlike") {
+        if (existingVote === "like") {
+            await redisClient.decr(likeKey);
+            await redisClient.del(userVotedKey);
+            const likes = await redisClient.get(likeKey);
+            comment.likesCount = parseInt(likes) || 0;
+            await comment.save();
+        }
+        return res.status(200).json({ success: true, message: "like removed", data: { likes: comment.likesCount } });
+    }
 
     if (existingVote === action) {
         // Toggle off
@@ -521,7 +619,9 @@ exports.getFollowers = asyncHandler(async (req, res, next) => {
     const relationships = await Relationship.find({ following: userId })
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit);
+        .limit(limit)
+        .select('follower')
+        .lean();
 
     const followerIds = relationships.map(r => r.follower);
     const profiles = await internalServices.getUsersProfiles(followerIds);
@@ -556,7 +656,9 @@ exports.getFollowing = asyncHandler(async (req, res, next) => {
     const relationships = await Relationship.find({ follower: userId })
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit);
+        .limit(limit)
+        .select('following')
+        .lean();
 
     const followingIds = relationships.map(r => r.following);
     const profiles = await internalServices.getUsersProfiles(followingIds);

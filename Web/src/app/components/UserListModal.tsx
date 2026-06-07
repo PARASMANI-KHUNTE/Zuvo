@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import apiClient from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
+import Image from "next/image";
 
 interface User {
     id: string;
@@ -159,8 +160,8 @@ export default function UserListModal({ isOpen, onClose, title, userId, type }: 
                                     return (
                                         <div key={uid} className="flex items-center justify-between p-3 rounded-2xl hover:bg-white/5 transition-colors group">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-11 h-11 rounded-xl overflow-hidden bg-slate-800 border border-white/5 shadow-lg group-hover:scale-105 transition-all">
-                                                    <img src={u.avatar || fallbackAvatar(u.username)} alt={u.username} className="w-full h-full object-cover" />
+                                                <div className="w-11 h-11 rounded-xl overflow-hidden bg-slate-800 border border-white/5 shadow-lg group-hover:scale-105 transition-all relative">
+                                                    <Image src={u.avatar || fallbackAvatar(u.username)} alt={u.username} fill unoptimized className="object-cover" />
                                                 </div>
                                                 <div className="flex flex-col min-w-0">
                                                     <span className="text-white font-bold text-sm truncate">{u.name}</span>

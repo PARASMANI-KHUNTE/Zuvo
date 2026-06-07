@@ -5,6 +5,7 @@ import { X, Image as ImageIcon, Tag, Globe, MessageSquare, Send, Loader2 } from 
 import { useModals } from "@/context/ModalContext";
 import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/lib/api";
+import Image from "next/image";
 
 const SUGGESTED_TAGS = ["tech", "ai", "web3", "design", "lifestyle", "coding", "art"];
 
@@ -158,7 +159,9 @@ export default function ComposeModal() {
                         </div>
 
                         <div className="flex items-center gap-3">
-                            <img src={userAvatar} alt="me" className="w-10 h-10 rounded-full border border-white/10 object-cover" />
+                            <div className="w-10 h-10 rounded-full border border-white/10 overflow-hidden relative">
+                                <Image src={userAvatar} alt="me" fill unoptimized className="object-cover" />
+                            </div>
                             <div>
                                 <p className="text-sm font-bold text-white">{user?.name}</p>
                                 <p className="text-xs text-slate-500">@{user?.username} · Public</p>
@@ -184,7 +187,7 @@ export default function ComposeModal() {
                         {imagePreview && (
                             <div className="relative rounded-xl overflow-hidden border border-white/10 bg-slate-900 flex items-center justify-center">
                                 {image?.type.startsWith("image/") ? (
-                                    <img src={imagePreview} alt="Preview" className="w-full max-h-48 object-cover" />
+                                    <Image src={imagePreview} alt="Preview" width={800} height={400} unoptimized className="w-full h-auto max-h-48 object-cover" />
                                 ) : image?.type.startsWith("video/") ? (
                                     <video src={imagePreview} className="w-full max-h-48 object-cover" controls />
                                 ) : image?.type.startsWith("audio/") ? (

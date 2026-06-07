@@ -2,12 +2,13 @@ const express = require("express");
 const dotenv = require("dotenv");
 const helmet = require("helmet");
 const cors = require("cors");
+const compression = require("compression");
 const cookieParser = require("cookie-parser");
 const rateLimit = require("express-rate-limit");
 dotenv.config();
 process.env.SERVICE_NAME = "blog-service";
 
-const { connectDB, logger, requestTrace, initTracing, metrics, faultInjection, errorHandler, HealthCheck } = require("@zuvo/shared");
+const { connectDB, connectRedis, logger, requestTrace, initTracing, metrics, faultInjection, errorHandler, HealthCheck } = require("@zuvo/shared");
 
 initTracing("blog-service");
 
@@ -15,7 +16,7 @@ initTracing("blog-service");
 const blogRoutes = require("./src/routes/blog");
 
 const app = express();
-// app.use(requestTrace);
+app.use(requestTrace);
 app.use(metrics.metricsMiddleware("blog-service"));
 app.use(faultInjection);
 
@@ -26,6 +27,7 @@ app.use(cors({
     origin: process.env.CORS_ORIGIN || "http://localhost:3000",
     credentials: true
 }));
+app.use(compression());
 app.use(cookieParser());
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
@@ -41,7 +43,6 @@ app.use("/api", limiter);
 
 // Database Connection
 connectDB();
-const { connectRedis } = require("@zuvo/shared");
 connectRedis();
 
 

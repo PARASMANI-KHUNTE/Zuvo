@@ -24,15 +24,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} ${outfit.variable} font-sans antialiased pt-24 pb-12`}>
-        <AuthProvider>
-          <ConfirmationProvider>
-            <ToastProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <ConfirmationProvider>
               <SocketProvider>
                 <LayoutWrapper>{children}</LayoutWrapper>
               </SocketProvider>
-            </ToastProvider>
-          </ConfirmationProvider>
-        </AuthProvider>
+            </ConfirmationProvider>
+          </AuthProvider>
+        </ToastProvider>
       </body>
     </html>
   );

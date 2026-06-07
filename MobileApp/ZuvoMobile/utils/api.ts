@@ -1,9 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// For Android emulator it needs to be 10.0.2.2 instead of localhost
-// If running on a real device, it requires the actual IP address of the dev machine
-const GATEWAY_URL = 'http://localhost:5000';
+import { GATEWAY_URL } from './config';
 
 const api = axios.create({
   baseURL: GATEWAY_URL,

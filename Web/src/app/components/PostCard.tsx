@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
+import Image from "next/image";
 import { Heart, MessageCircle, Share2, MoreHorizontal, Bookmark, EyeOff, Edit3, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -24,7 +25,7 @@ interface PostCardProps {
     onDelete?: (id: string) => void;
 }
 
-export default function PostCard({ id, author, avatar, content, image, media = [], likes: initialLikes, comments, timestamp, initialIsLiked = false, initialIsSaved = false, isOwnPost = false, tags = [], onDelete }: PostCardProps) {
+const PostCard = React.memo(function PostCard({ id, author, avatar, content, image, media = [], likes: initialLikes, comments, timestamp, initialIsLiked = false, initialIsSaved = false, isOwnPost = false, tags = [], onDelete }: PostCardProps) {
     const router = useRouter();
     const { toast } = useToast();
     const { confirm } = useConfirm();
@@ -174,8 +175,8 @@ export default function PostCard({ id, author, avatar, content, image, media = [
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/40 to-secondary/40 border border-white/10 overflow-hidden">
-                        {avatar && <img src={avatar} alt={author} className="w-full h-full object-cover" />}
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/40 to-secondary/40 border border-white/10 overflow-hidden relative">
+                        {avatar && <Image src={avatar} alt={author} fill unoptimized className="object-cover" />}
                     </div>
                     <div>
                         <h4 className="font-bold text-sm text-white">{author}</h4>
@@ -235,7 +236,7 @@ export default function PostCard({ id, author, avatar, content, image, media = [
                         {media.map((item, idx) => (
                             <div key={idx} className="rounded-2xl overflow-hidden border border-white/5 bg-slate-900/50">
                                 {item.type === "image" ? (
-                                    <img src={item.url} alt="Post content" className="w-full h-auto object-cover max-h-[450px]" />
+                                    <Image src={item.url} alt="Post content" width={800} height={450} unoptimized className="w-full h-auto object-cover max-h-[450px]" />
                                 ) : item.type === "video" ? (
                                     <video src={item.url} controls className="w-full h-auto max-h-[450px]" onClick={(e) => e.stopPropagation()} />
                                 ) : item.type === "audio" ? (
@@ -264,7 +265,7 @@ export default function PostCard({ id, author, avatar, content, image, media = [
                     </div>
                 ) : image && (
                     <div className="rounded-2xl overflow-hidden border border-white/5 mt-2">
-                        <img src={image} alt="Post content" className="w-full h-auto object-cover max-h-[400px]" />
+                        <Image src={image} alt="Post content" width={800} height={400} unoptimized className="w-full h-auto object-cover max-h-[400px]" />
                     </div>
                 )}
 
@@ -312,7 +313,7 @@ export default function PostCard({ id, author, avatar, content, image, media = [
     );
 }
 
-function ActionButton({ icon, count, color, onClick, disabled }: { icon: React.ReactNode; count?: number; color?: string; onClick?: (e: React.MouseEvent) => void; disabled?: boolean }) {
+const ActionButton = React.memo(function ActionButton({ icon, count, color, onClick, disabled }: { icon: React.ReactNode; count?: number; color?: string; onClick?: (e: React.MouseEvent) => void; disabled?: boolean }) {
     return (
         <button
             onClick={onClick}

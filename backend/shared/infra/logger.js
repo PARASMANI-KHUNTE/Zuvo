@@ -17,6 +17,7 @@ const logger = winston.createLogger({
 
 // For development, use a more readable format
 if (process.env.NODE_ENV !== "production") {
+    logger.clear();
     logger.add(new winston.transports.Console({
         format: winston.format.combine(
             winston.format.colorize(),
@@ -26,8 +27,6 @@ if (process.env.NODE_ENV !== "production") {
             })
         )
     }));
-    // Remove the default json console transport in dev to avoid double logging
-    logger.remove(logger.transports[1]);
 }
 
 module.exports = logger;

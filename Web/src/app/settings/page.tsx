@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import {
     User, Mail, Camera, Lock, Eye, EyeOff, Bell,
     Shield, Globe, Trash2, CheckCircle2, AlertTriangle,
@@ -8,6 +9,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { useConfirm } from "@/context/ConfirmationContext";
+import { useRouter } from "next/navigation";
 import apiClient from "@/lib/api";
 import imageCompression from "browser-image-compression";
 
@@ -32,7 +34,8 @@ const SETTINGS_TABS = [
 ];
 
 export default function SettingsPage() {
-    const { user, loading: authLoading, setUser, logout } = useAuth();
+    const router = useRouter();
+    const { user, loading: authLoading, setUser, logout, isAuthenticated } = useAuth();
     const { toast } = useToast();
     const { confirm } = useConfirm();
     const [activeTab, setActiveTab] = useState("account");
@@ -62,6 +65,12 @@ export default function SettingsPage() {
         },
         isPrivate: false
     });
+
+    useEffect(() => {
+        if (!authLoading && !isAuthenticated) {
+            router.push("/auth/login");
+        }
+    }, [authLoading, isAuthenticated, router]);
 
     useEffect(() => {
         if (user) {
@@ -111,7 +120,7 @@ export default function SettingsPage() {
             const formDataMedia = new FormData();
             formDataMedia.append("file", compressed);
             const uploadRes = await apiClient.post("/media/upload", formDataMedia, {
-                headers: { "Content-Type": "multipart/form-type" }
+                headers: { "Content-Type": "multipart/form-data" }
             });
 
             const avatarUrl = uploadRes.data.data.url;
@@ -138,7 +147,7 @@ export default function SettingsPage() {
             const formDataMedia = new FormData();
             formDataMedia.append("file", compressed);
             const uploadRes = await apiClient.post("/media/upload", formDataMedia, {
-                headers: { "Content-Type": "multipart/form-type" }
+                headers: { "Content-Type": "multipart/form-data" }
             });
 
             const bannerUrl = uploadRes.data.data.url;
@@ -250,9 +259,11 @@ export default function SettingsPage() {
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="glass-panel overflow-hidden rounded-2xl border border-white/5 relative">
                             <div className="h-40 w-full relative group bg-slate-800">
-                                <img
+                                <Image
                                     src={user?.banner || "/default-banner.jpg"}
                                     alt="Banner"
+                                    fill
+                                    unoptimized
                                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                                 />
                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer" onClick={() => bannerInputRef.current?.click()}>
@@ -267,9 +278,12 @@ export default function SettingsPage() {
                             <div className="p-6 md:p-8 pt-0 relative">
                                 <div className="relative -mt-12 mb-6 flex items-end justify-between">
                                     <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                                        <img
+                                        <Image
                                             src={user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=me"}
                                             alt="Avatar"
+                                            width={112}
+                                            height={112}
+                                            unoptimized
                                             className="w-28 h-28 rounded-2xl border-4 border-[#020617] object-cover group-hover:brightness-75 transition-all bg-slate-900 shadow-2xl"
                                         />
                                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white pointer-events-none">
@@ -487,19 +501,84 @@ export default function SettingsPage() {
                 )}
 
                 {activeTab === "notifications" && (
-                    <div className="glass-panel p-8 rounded-2xl border border-white/5 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <h2 className="text-lg font-bold text-white border-b border-white/10 pb-4 mb-6">Notification Preferences</h2>
-                        <div className="space-y-4">
-                            {["Email Notifications", "Push Notifications", "In-app Badges", "Direct Messages"].map(pref => (
-                                <div key={pref} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
-                                    <p className="font-bold text-slate-200">{pref}</p>
-                                    <div className="w-12 h-6 bg-accent rounded-full relative cursor-pointer shadow-neon-pink"><div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div></div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    <NotificationPreferences />
                 )}
 
+            </div>
+        </div>
+    );
+}
+
+const NOTIFICATION_KEYS = ["email", "push", "in_app", "dm"] as const;
+const NOTIFICATION_LABELS: Record<string, string> = {
+    email: "Email Notifications",
+    push: "Push Notifications",
+    in_app: "In-app Badges",
+    dm: "Direct Messages",
+};
+
+function NotificationPreferences() {
+    const { toast } = useToast();
+    const [prefs, setPrefs] = useState<Record<string, boolean>>({
+        email: true,
+        push: true,
+        in_app: true,
+        dm: true,
+    });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchPrefs = async () => {
+            try {
+                const res = await apiClient.get("/notifications/preferences");
+                if (res.data.success) {
+                    setPrefs(res.data.data || prefs);
+                }
+            } catch {
+                // ignore
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchPrefs();
+    }, []);
+
+    const togglePref = async (key: string) => {
+        const newVal = !prefs[key];
+        setPrefs(prev => ({ ...prev, [key]: newVal }));
+        try {
+            await apiClient.put("/notifications/preferences", { [key]: newVal });
+            toast("Notification preference updated", "success");
+        } catch {
+            setPrefs(prev => ({ ...prev, [key]: !newVal }));
+            toast("Failed to update preference", "error");
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="glass-panel p-8 rounded-2xl border border-white/5 flex items-center justify-center min-h-[200px]">
+                <Loader2 className="w-6 h-6 text-primary animate-spin" />
+            </div>
+        );
+    }
+
+    return (
+        <div className="glass-panel p-8 rounded-2xl border border-white/5 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="text-lg font-bold text-white border-b border-white/10 pb-4 mb-6">Notification Preferences</h2>
+            <div className="space-y-4">
+                {NOTIFICATION_KEYS.map(key => (
+                    <div key={key} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors">
+                        <p className="font-bold text-slate-200">{NOTIFICATION_LABELS[key]}</p>
+                        <button
+                            type="button"
+                            onClick={() => togglePref(key)}
+                            className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${prefs[key] ? 'bg-accent shadow-neon-pink' : 'bg-slate-700'}`}
+                        >
+                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${prefs[key] ? 'right-1' : 'left-1'}`} />
+                        </button>
+                    </div>
+                ))}
             </div>
         </div>
     );

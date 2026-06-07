@@ -1,12 +1,13 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Heart, MessageCircle, Share2, ArrowLeft, Loader2, Music2, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import apiClient from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
-import toast from "react-hot-toast";
+import { useToast } from "@/context/ToastContext";
 
 interface ShortVideo {
     _id: string;
@@ -27,17 +28,53 @@ interface ShortVideo {
 
 export default function ShortsPage() {
     const router = useRouter();
-    const { user: currentUser } = useAuth();
+    const { user: currentUser, isAuthenticated, loading: authLoading } = useAuth();
+    const { toast } = useToast();
     const [shorts, setShorts] = useState<ShortVideo[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const observer = useRef<IntersectionObserver | null>(null);
+    const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
 
-    const fetchShorts = useCallback(async (pageNum: number) => {
+    const videoObserver = useRef<IntersectionObserver | null>(null);
+
+    useEffect(() => {
+        videoObserver.current = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                const video = entry.target as HTMLVideoElement;
+                if (entry.isIntersecting) {
+                    video.play().catch(() => {});
+                } else {
+                    video.pause();
+                }
+            });
+        }, { threshold: 0.6 });
+
+        return () => {
+            videoObserver.current?.disconnect();
+        };
+    }, []);
+
+    const setVideoRef = useCallback((id: string, el: HTMLVideoElement | null) => {
+        if (el) {
+            videoRefs.current.set(id, el);
+            videoObserver.current?.observe(el);
+        } else {
+            const prev = videoRefs.current.get(id);
+            if (prev) {
+                videoObserver.current?.unobserve(prev);
+                videoRefs.current.delete(id);
+            }
+        }
+    }, []);
+
+    const fetchShorts = useCallback(async (pageNum: number, signal?: AbortSignal) => {
         try {
             setLoading(true);
-            const res = await apiClient.get<any>(`/blogs?page=${pageNum}&limit=5&type=video`);
+            const res = await apiClient.get<any>(`/blogs?page=${pageNum}&limit=5&type=video`, {
+                signal
+            });
 
             if (res.data?.success) {
                 // Filter specifically for posts containing at least one video
@@ -54,17 +91,24 @@ export default function ShortsPage() {
                 // If the backend returns less than the limit, assume no more
                 setHasMore(res.data.data.length === 5);
             }
-        } catch (err) {
+        } catch (err: any) {
+            if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
             console.error("Failed to load shorts", err);
-            toast.error("Failed to load video shorts");
+            toast("Failed to load video shorts", "error");
         } finally {
             setLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        fetchShorts(1);
-    }, [fetchShorts]);
+        if (!authLoading && !isAuthenticated) {
+            router.push("/auth/login");
+            return;
+        }
+        const abortController = new AbortController();
+        fetchShorts(1, abortController.signal);
+        return () => abortController.abort();
+    }, [fetchShorts, authLoading, isAuthenticated, router]);
 
     const lastVideoElementRef = useCallback(
         (node: HTMLDivElement | null) => {
@@ -86,7 +130,9 @@ export default function ShortsPage() {
 
     useEffect(() => {
         if (page > 1) {
-            fetchShorts(page);
+            const abortController = new AbortController();
+            fetchShorts(page, abortController.signal);
+            return () => abortController.abort();
         }
     }, [page, fetchShorts]);
 
@@ -132,13 +178,12 @@ export default function ShortsPage() {
                             className="w-full h-[100dvh] snap-start relative bg-black flex items-center justify-center"
                         >
                             <video
+                                ref={(el) => setVideoRef(short._id, el)}
                                 src={videoMedia.url}
                                 className="w-full h-full object-cover"
                                 loop
                                 playsInline
-                                // Auto-play is tricky on web, intersection observer normally used to trigger play/pause
-                                autoPlay={index === 0}
-                                muted={index === 0} // Autoplay usually requires mute
+                                muted
                                 controls
                             />
 
@@ -151,9 +196,12 @@ export default function ShortsPage() {
                                 {/* Info */}
                                 <div className="flex-1 pr-12 text-white">
                                     <Link href={`/profile/${short.author?.username}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity mb-3">
-                                        <img
+                                        <Image
                                             src={short.author?.avatar || fallbackAvatar(short.author?.username || "author")}
-                                            alt={short.author?.name}
+                                            alt={short.author?.name || "Author"}
+                                            width={40}
+                                            height={40}
+                                            unoptimized
                                             className="w-10 h-10 rounded-full border border-white/20"
                                         />
                                         <div>

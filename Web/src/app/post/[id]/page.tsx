@@ -10,6 +10,7 @@ import SuggestedUsers from "@/app/components/SuggestedUsers";
 import TrendingSidebar from "@/app/components/TrendingSidebar";
 import apiClient from "@/lib/api";
 import Link from "next/link";
+import Image from "next/image";
 import { useToast } from "@/context/ToastContext";
 
 export default function PostDetailPage({ params }: { params: { id: string } }) {
@@ -147,9 +148,10 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                     {/* Header */}
                     <div className="flex items-center justify-between">
                         <Link href={`/profile/${post.author?.username}`} className="flex items-center gap-4 hover:opacity-80 transition-opacity">
-                            <img
+                            <Image
                                 src={post.author?.avatar || fallbackAvatar(post.author?.username || "author")}
-                                alt={post.author?.name}
+                                alt={post.author?.name || "Author"}
+                                width={48} height={48} unoptimized
                                 className="w-12 h-12 rounded-full border border-white/10 object-cover"
                             />
                             <div>
@@ -180,7 +182,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                                 {post.media.map((item: any, idx: number) => (
                                     <div key={idx} className="rounded-2xl overflow-hidden border border-white/5 shadow-2xl bg-slate-900/50">
                                         {item.type === "image" ? (
-                                            <img src={item.url} alt="Post visual" className="w-full h-auto object-cover max-h-[800px]" />
+                                            <Image src={item.url} alt="Post visual" width={800} height={600} unoptimized className="w-full h-auto object-cover max-h-[800px]" />
                                         ) : item.type === "video" ? (
                                             <video src={item.url} controls className="w-full h-auto max-h-[800px]" />
                                         ) : item.type === "audio" ? (
@@ -208,7 +210,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                             </div>
                         ) : post.image && post.image !== "no-photo.jpg" && (
                             <div className="rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
-                                <img src={post.image} alt="Post visual" className="w-full h-auto object-cover max-h-[600px]" />
+                                <Image src={post.image} alt="Post visual" width={800} height={600} unoptimized className="w-full h-auto object-cover max-h-[600px]" />
                             </div>
                         )}
 
@@ -251,8 +253,9 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
 
                 {/* Comment Input */}
                 <form onSubmit={handleCommentSubmit} className="glass-panel p-4 rounded-2xl border border-white/5 flex items-center gap-4">
-                    <img
+                    <Image
                         src={currentUser?.avatar || fallbackAvatar(currentUser?.username || "me")}
+                        width={40} height={40} unoptimized
                         className="w-10 h-10 rounded-full border border-white/10 object-cover"
                         alt="My Profile"
                     />
@@ -383,9 +386,10 @@ function CommentItem({ comment, postId, currentUser, depth = 0 }: { comment: any
         >
             <div className="flex items-center justify-between">
                 <Link href={`/profile/${comment.user?.username}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                    <img
+                    <Image
                         src={comment.user?.avatar || fallbackAvatar(comment.user?.username || "commenter")}
-                        alt={comment.user?.name}
+                        alt={comment.user?.name || "User"}
+                        width={32} height={32} unoptimized
                         className="w-8 h-8 rounded-full object-cover"
                     />
                     <div>

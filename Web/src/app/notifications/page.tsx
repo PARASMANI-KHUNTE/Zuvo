@@ -1,7 +1,10 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 import { Heart, UserPlus, MessageCircle, BellRing, Settings, Check, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/lib/api";
 
 type NotificationType = "LIKE" | "FOLLOW" | "COMMENT" | "SYSTEM";
@@ -27,32 +30,52 @@ interface FollowRequest {
 }
 
 export default function NotificationsPage() {
+    const router = useRouter();
+    const { isAuthenticated, loading: authLoading } = useAuth();
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [followRequests, setFollowRequests] = useState<FollowRequest[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        Promise.all([fetchNotifications(), fetchFollowRequests()]).finally(() => setLoading(false));
-    }, []);
+        if (authLoading) return;
+        if (!isAuthenticated) {
+            router.push("/auth/login");
+            return;
+        }
 
-    const fetchFollowRequests = async () => {
+        const abortController = new AbortController();
+
+        Promise.all([fetchNotifications(abortController.signal), fetchFollowRequests(abortController.signal)])
+            .catch(err => {
+                if ((err as any)?.name === 'CanceledError' || (err as any)?.code === 'ERR_CANCELED') return;
+                setError(err?.response?.data?.message || "Failed to load notifications")
+            })
+            .finally(() => setLoading(false));
+
+        return () => abortController.abort();
+    }, [authLoading, isAuthenticated, router]);
+
+    const fetchFollowRequests = async (signal?: AbortSignal) => {
         try {
-            const res = await apiClient.get("/interactions/relationships/requests");
+            const res = await apiClient.get("/interactions/relationships/requests", { signal });
             if (res.data.success) {
                 setFollowRequests(res.data.data);
             }
-        } catch (err) {
+        } catch (err: any) {
+            if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
             console.error("Failed to fetch follow requests", err);
         }
     };
 
-    const fetchNotifications = async () => {
+    const fetchNotifications = async (signal?: AbortSignal) => {
         try {
-            const res = await apiClient.get("/notifications");
+            const res = await apiClient.get("/notifications", { signal });
             if (res.data.success) {
                 setNotifications(res.data.data);
             }
-        } catch (err) {
+        } catch (err: any) {
+            if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
             console.error("Failed to fetch notifications", err);
         }
     };
@@ -115,6 +138,17 @@ export default function NotificationsPage() {
         );
     }
 
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+                <p className="text-red-400 font-medium">{error}</p>
+                <button onClick={() => { setLoading(true); setError(null); Promise.all([fetchNotifications(), fetchFollowRequests()]).finally(() => setLoading(false)); }} className="btn-primary px-6 py-2">
+                    Retry
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className="w-full max-w-2xl mx-auto pb-20 space-y-6">
             {/* Header */}
@@ -144,9 +178,12 @@ export default function NotificationsPage() {
                         {followRequests.map((req) => (
                             <div key={req.id} className="p-5 flex items-center justify-between gap-4 hover:bg-white/5 transition-colors">
                                 <div className="flex items-center gap-3">
-                                    <img
+                                    <Image
                                         src={req.user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"}
-                                        alt={req.user?.name}
+                                        alt={req.user?.name || "User"}
+                                        width={40}
+                                        height={40}
+                                        unoptimized
                                         className="w-10 h-10 rounded-full object-cover border border-white/10"
                                     />
                                     <div className="min-w-0">
@@ -192,9 +229,12 @@ export default function NotificationsPage() {
                             {/* Content */}
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <img
+                                    <Image
                                         src={notif.actor?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"}
-                                        alt={notif.actor?.name}
+                                        alt={notif.actor?.name || "User"}
+                                        width={32}
+                                        height={32}
+                                        unoptimized
                                         className="w-8 h-8 rounded-full object-cover border border-white/10"
                                     />
                                     <p className="text-sm text-slate-300">

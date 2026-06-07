@@ -3,6 +3,7 @@ import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingVi
 import { useRouter, Href, useLocalSearchParams } from 'expo-router';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
+import { GATEWAY_URL } from '../../utils/config';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
@@ -86,7 +87,6 @@ export default function RegisterScreen() {
     const handleGoogleSignup = async () => {
         setGoogleLoading(true);
         try {
-            const GATEWAY_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000';
             const redirectUrl = Linking.createURL('/auth/callback');
             const authUrl = `${GATEWAY_URL}/api/v1/auth/google?mobile=true`;
 

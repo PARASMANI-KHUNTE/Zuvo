@@ -1,6 +1,7 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import apiClient from "@/lib/api";
+import { useToast } from "@/context/ToastContext";
 
 interface User {
     _id?: string;
@@ -42,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [accessToken, setAccessToken] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const { toast } = useToast();
     // Keep a ref so the axios interceptor always sees the latest token
     const tokenRef = useRef<string | null>(null);
     const authPromiseRef = useRef<Promise<void> | null>(null);
@@ -87,6 +89,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     setAccessToken(null);
                 }
             } catch (err: any) {
+                if (err.response?.status !== 401) {
+                    toast(err.response?.data?.message || "Authentication error", "error");
+                }
                 setUser(null);
                 tokenRef.current = null;
                 setAccessToken(null);

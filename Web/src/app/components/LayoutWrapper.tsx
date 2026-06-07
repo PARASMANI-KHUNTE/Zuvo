@@ -5,6 +5,7 @@ import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
 import { ModalProvider } from "@/context/ModalContext";
 import ComposeModal from "./ComposeModal";
+import Image from "next/image";
 
 export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, loading, user } = useAuth();
@@ -52,9 +53,9 @@ function MobileNav({ user }: { user: any }) {
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
             </a>
             <a href={`/profile/${user?.username}`} className={`p-2 ${pathname?.includes('/profile') ? 'text-primary' : 'text-slate-400'}`}>
-                <div className="w-6 h-6 rounded-full overflow-hidden bg-slate-700 border border-white/20">
+                <div className="w-6 h-6 rounded-full overflow-hidden bg-slate-700 border border-white/20 relative">
                     {user?.avatar
-                        ? <img src={user.avatar} alt="me" className="w-full h-full object-cover" />
+                        ? <Image src={user.avatar} alt="me" fill unoptimized className="object-cover" />
                         : <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full p-0.5"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
                     }
                 </div>

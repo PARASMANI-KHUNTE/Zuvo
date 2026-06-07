@@ -1,5 +1,4 @@
 const mongoSanitize = require("express-mongo-sanitize");
-const xss = require("xss-clean");
 
 /**
  * Enterprise Security Hardening Middleware
@@ -12,7 +11,30 @@ const securityMiddleware = [
         if (req.params) mongoSanitize.sanitize(req.params);
         next();
     },
-    // xss() // Temporarily disabled to debug Express 5.x compatibility
+    (req, res, next) => {
+        if (req.body) stripXSS(req.body);
+        if (req.query) stripXSS(req.query);
+        if (req.params) stripXSS(req.params);
+        next();
+    }
 ];
+
+function stripXSS(obj) {
+    if (typeof obj === "string") {
+        return obj
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#x27;")
+            .replace(/\//g, "&#x2F;");
+    }
+    if (typeof obj === "object" && obj !== null) {
+        for (const key of Object.keys(obj)) {
+            obj[key] = stripXSS(obj[key]);
+        }
+    }
+    return obj;
+}
 
 module.exports = securityMiddleware;

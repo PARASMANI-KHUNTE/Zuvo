@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { Calendar, MapPin, Link as LinkIcon, MessageCircle, UserPlus, UserMinus, Loader2, Image as ImageIcon } from "lucide-react";
 import { motion } from "framer-motion";
@@ -26,11 +27,15 @@ export default function ProfilePage() {
     });
 
     useEffect(() => {
+        const abortController = new AbortController();
+
         const fetchProfile = async () => {
             try {
                 setLoading(true);
                 // 1. Fetch User Profile
-                const userRes = await apiClient.get(`/auth/profile/${username}`);
+                const userRes = await apiClient.get(`/auth/profile/${username}`, {
+                    signal: abortController.signal
+                });
                 const profileUser = userRes.data.data;
                 setUser(profileUser);
 
@@ -38,8 +43,12 @@ export default function ProfilePage() {
 
                 // 2. Fetch Relationships and Posts independently
                 const [relRes, postsRes] = await Promise.allSettled([
-                    apiClient.get(`/interactions/relationships/${userId}`),
-                    apiClient.get(`/blogs?author=${userId}`)
+                    apiClient.get(`/interactions/relationships/${userId}`, {
+                        signal: abortController.signal
+                    }),
+                    apiClient.get(`/blogs?author=${userId}`, {
+                        signal: abortController.signal
+                    })
                 ]);
 
                 if (relRes.status === "fulfilled") {
@@ -54,7 +63,8 @@ export default function ProfilePage() {
                     console.error("Failed to fetch posts", postsRes.reason);
                 }
 
-            } catch (err) {
+            } catch (err: any) {
+                if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
                 console.error("Failed to fetch profile", err);
             } finally {
                 setLoading(false);
@@ -62,6 +72,8 @@ export default function ProfilePage() {
         };
 
         if (username) fetchProfile();
+
+        return () => abortController.abort();
     }, [username]);
 
     const handleFollow = async () => {
@@ -113,7 +125,7 @@ export default function ProfilePage() {
         <div className="max-w-4xl mx-auto pb-20">
             {/* Banner */}
             <div className="h-48 md:h-64 w-full bg-slate-800 rounded-b-3xl relative overflow-hidden group">
-                <img src={user.banner} alt="banner" className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-all duration-700" />
+                <Image src={user.banner} alt="banner" fill unoptimized className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-all duration-700" />
                 <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
             </div>
 
@@ -122,7 +134,7 @@ export default function ProfilePage() {
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                     <div className="space-y-4">
                         <div className="w-32 h-32 md:-mt-16 rounded-3xl bg-gradient-to-br from-primary to-secondary p-1 shadow-2xl relative z-20 overflow-hidden">
-                            <img src={user.avatar || fallbackAvatar(user.username)} alt={user.name} className="w-full h-full object-cover rounded-[22px] border-4 border-[#020617]" />
+                            <Image src={user.avatar || fallbackAvatar(user.username)} alt={user.name} fill unoptimized className="w-full h-full object-cover rounded-[22px] border-4 border-[#020617]" />
                         </div>
                         <div className="space-y-1">
                             <h1 className="text-3xl font-black text-white tracking-tight">{user.name}</h1>
@@ -216,7 +228,7 @@ export default function ProfilePage() {
                         <div className="space-y-4">
                             {activeTab === "posts" && (
                                 posts.length > 0 ? (
-                                    posts.map(post => <PostCard key={post.id || post._id} {...post} author={user.name} avatar={user.avatar} id={post.id || post._id} timestamp={format(new Date(post.createdAt), "MMM d")} />)
+                                    posts.map(post => <PostCard key={post.id || post._id} {...post} author={user.name} avatar={user.avatar} id={post.id || post._id} likes={post.likesCount || 0} comments={post.commentsCount || 0} timestamp={format(new Date(post.createdAt), "MMM d")} />)
                                 ) : (
                                     <div className="glass-panel p-10 text-center space-y-2">
                                         <p className="text-slate-400 font-medium">No posts yet</p>
@@ -229,11 +241,11 @@ export default function ProfilePage() {
                                     {posts.filter(p => p.media && p.media.length > 0).map(post => {
                                         const mediaItem = post.media[0];
                                         return (
-                                            <div key={post.id || post._id} className="aspect-square rounded-2xl overflow-hidden border border-white/5 cursor-pointer hover:border-white/20 transition-all bg-slate-900 flex items-center justify-center">
+                                            <div key={post.id || post._id} className="aspect-square rounded-2xl overflow-hidden border border-white/5 cursor-pointer hover:border-white/20 transition-all bg-slate-900 flex items-center justify-center relative">
                                                 {mediaItem.type === "video" ? (
                                                     <video src={mediaItem.url} className="w-full h-full object-cover opacity-80" muted />
                                                 ) : mediaItem.type === "image" ? (
-                                                    <img src={mediaItem.url} alt="Media" className="w-full h-full object-cover" />
+                                                    <Image src={mediaItem.url} alt="Media" fill unoptimized className="w-full h-full object-cover" />
                                                 ) : (
                                                     <span className="text-slate-500 font-bold uppercase">{mediaItem.type}</span>
                                                 )}
@@ -244,6 +256,9 @@ export default function ProfilePage() {
                                         <div className="col-span-2 py-10 text-center text-slate-500 text-sm glass-panel rounded-2xl">No media found</div>
                                     )}
                                 </div>
+                            )}
+                            {activeTab === "likes" && (
+                                <LikedPostsTab userId={user._id || user.id} />
                             )}
                         </div>
                     </div>
@@ -266,6 +281,72 @@ export default function ProfilePage() {
                 userId={user._id || user.id}
                 type={listModal.type}
             />
+        </div>
+    );
+}
+
+function LikedPostsTab({ userId }: { userId: string }) {
+    const [likedPosts, setLikedPosts] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const abortController = new AbortController();
+
+        const fetchLiked = async () => {
+            try {
+                const res = await apiClient.get(`/interactions/liked-posts/${userId}`, {
+                    signal: abortController.signal
+                });
+                if (res.data.success) {
+                    setLikedPosts(res.data.data || []);
+                }
+            } catch (err: any) {
+                if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
+                console.error("Failed to fetch liked posts", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchLiked();
+
+        return () => abortController.abort();
+    }, [userId]);
+
+    if (loading) {
+        return (
+            <div className="flex justify-center py-10">
+                <Loader2 className="w-6 h-6 text-primary animate-spin" />
+            </div>
+        );
+    }
+
+    if (likedPosts.length === 0) {
+        return (
+            <div className="glass-panel p-10 text-center space-y-2">
+                <p className="text-slate-400 font-medium">No liked posts yet</p>
+                <p className="text-slate-600 text-xs text-balance">Posts this user likes will appear here.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-4">
+            {likedPosts.map((post: any) => (
+                <PostCard
+                    key={post._id || post.id}
+                    id={post._id || post.id}
+                    author={post.author?.name || "Unknown"}
+                    avatar={post.author?.avatar}
+                    content={post.content}
+                    image={post.image !== "no-photo.jpg" ? post.image : undefined}
+                    media={post.media}
+                    likes={post.likesCount || 0}
+                    comments={post.commentsCount || 0}
+                    tags={post.tags}
+                    timestamp={post.createdAt ? format(new Date(post.createdAt), "MMM d") : ""}
+                    initialIsLiked
+                />
+            ))}
         </div>
     );
 }

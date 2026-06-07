@@ -1,10 +1,11 @@
 "use client";
 import React, { useState } from "react";
+import Image from "next/image";
 import { Search, Bell, MessageSquare, Loader2 } from "lucide-react";
 import { useSearch } from "@/hooks/useSearch";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { useChat } from "@/hooks/useChat";
+import { useSocket } from "@/context/SocketContext";
 import { useToast } from "@/context/ToastContext";
 import { motion, useAnimation } from "framer-motion";
 import Link from "next/link";
@@ -13,7 +14,7 @@ export default function Navbar() {
     const router = useRouter();
     const { query, setQuery, loading } = useSearch();
     const { user, isAuthenticated } = useAuth();
-    const { socket } = useChat();
+    const { socket } = useSocket();
     const { toast } = useToast();
     const [unread, setUnread] = useState(0);
     const controls = useAnimation();
@@ -98,8 +99,8 @@ export default function Navbar() {
                             <NavIconLink href="/messages" icon={<MessageSquare className="w-5 h-5" />} title="Messages" />
                             <div className="h-8 w-[1px] bg-white/10 mx-1" />
                             <Link href={`/profile/${user?.username}`} className="flex items-center gap-2 hover:opacity-80 transition-all" title="My Profile">
-                                <div className="w-8 h-8 rounded-full bg-slate-800 border border-white/20 overflow-hidden">
-                                    <img src={userAvatar} alt="profile" className="w-full h-full object-cover" />
+                                <div className="w-8 h-8 rounded-full bg-slate-800 border border-white/20 overflow-hidden relative">
+                                    <Image src={userAvatar} alt="profile" fill unoptimized className="object-cover" />
                                 </div>
                             </Link>
                         </>

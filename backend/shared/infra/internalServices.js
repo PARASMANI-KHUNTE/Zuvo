@@ -5,7 +5,7 @@ const { asyncLocalStorage } = require("./requestTrace");
 
 class InternalServiceClient {
     constructor() {
-        this.authBaseUrl = process.env.AUTH_INTERNAL_URL || "http://127.0.0.1:8000";
+        this.authBaseUrl = process.env.AUTH_INTERNAL_URL || process.env.AUTH_SERVICE_URL || "http://127.0.0.1:8010";
         this.blogBaseUrl = process.env.BLOG_INTERNAL_URL || "http://127.0.0.1:8001";
         this.interactionsBaseUrl = process.env.INTERACTIONS_INTERNAL_URL || "http://127.0.0.1:8002";
     }
@@ -59,7 +59,8 @@ class InternalServiceClient {
     async searchUsers(query, limit = 10, skip = 0, exclude = []) {
         const store = asyncLocalStorage.getStore();
         const excludeStr = Array.isArray(exclude) ? exclude.join(",") : exclude;
-        return this._get(`${this.authBaseUrl}/api/v1/auth/internal/users/search?q=${query}&limit=${limit}&skip=${skip}&exclude=${excludeStr}`, store?.requestId);
+        const encodedQuery = encodeURIComponent(query);
+        return this._get(`${this.authBaseUrl}/api/v1/auth/internal/users/search?q=${encodedQuery}&limit=${limit}&skip=${skip}&exclude=${excludeStr}`, store?.requestId);
     }
 
     async getFollowing(userId) {

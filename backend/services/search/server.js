@@ -1,4 +1,5 @@
 const express = require("express");
+const compression = require("compression");
 const dotenv = require("dotenv");
 const { models, logger, requestTrace, connectRedis, redisClient, connectDB, initTracing, metrics, faultInjection, errorHandler, authenticate, optionalAuth, internalServices, HealthCheck, rateLimiter } = require("@zuvo/shared");
 const Post = models.Post();
@@ -15,6 +16,7 @@ const app = express();
 app.use(requestTrace);
 app.use(metrics.metricsMiddleware(process.env.SERVICE_NAME));
 app.use(faultInjection);
+app.use(compression());
 app.use(express.json());
 
 /**

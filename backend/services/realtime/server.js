@@ -1,5 +1,6 @@
 const http = require("http");
 const express = require("express");
+const compression = require("compression");
 const { Server } = require("socket.io");
 const { createAdapter } = require("@socket.io/redis-adapter");
 const jwt = require("jsonwebtoken");
@@ -28,8 +29,68 @@ app.get("/ready", async (req, res) => {
 
 const { models, authenticate, connectDB: dbConnect, internalServices } = require("@zuvo/shared");
 const Notification = models.Notification();
+const User = models.User();
+const DEFAULT_NOTIFICATION_PREFERENCES = {
+    email: true,
+    push: true,
+    in_app: true,
+    dm: true
+};
 
+app.use(compression());
 app.use(express.json());
+
+/**
+ * @desc Get current user's notification preferences
+ * @route GET /api/v1/notifications/preferences
+ */
+app.get("/api/v1/notifications/preferences", authenticate, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id || req.user.id).select("notificationPreferences");
+        const preferences = {
+            ...DEFAULT_NOTIFICATION_PREFERENCES,
+            ...(user?.notificationPreferences?.toObject?.() || user?.notificationPreferences || {})
+        };
+        res.status(200).json({ success: true, data: preferences });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+});
+
+/**
+ * @desc Update current user's notification preferences
+ * @route PUT /api/v1/notifications/preferences
+ */
+app.put("/api/v1/notifications/preferences", authenticate, async (req, res) => {
+    try {
+        const updates = {};
+        for (const key of Object.keys(DEFAULT_NOTIFICATION_PREFERENCES)) {
+            if (typeof req.body[key] === "boolean") {
+                updates[`notificationPreferences.${key}`] = req.body[key];
+            }
+        }
+
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({ success: false, message: "No valid preferences provided" });
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.user._id || req.user.id,
+            { $set: updates },
+            { new: true }
+        ).select("notificationPreferences");
+
+        res.status(200).json({
+            success: true,
+            data: {
+                ...DEFAULT_NOTIFICATION_PREFERENCES,
+                ...(user?.notificationPreferences?.toObject?.() || user?.notificationPreferences || {})
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+});
 
 /**
  * @desc Get user's notifications

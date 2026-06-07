@@ -113,6 +113,12 @@ exports.getOrCreateConversation = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: "Cannot start a conversation with yourself" });
     }
 
+    // Verify recipient exists
+    const recipientProfile = await internalServices.getUserProfile(recipientId);
+    if (!recipientProfile || recipientProfile.name === "Unknown User") {
+        return res.status(404).json({ success: false, message: "Recipient not found" });
+    }
+
     let conversation = await Conversation.findOne({
         isGroup: false,
         participants: { $all: [currentUserId, recipientId] }

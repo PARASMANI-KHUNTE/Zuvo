@@ -387,7 +387,7 @@ const startGDPRListener = async () => {
                         const task = JSON.parse(data.data);
 
                         if (task.type === "GDPR_USER_DELETE") {
-                            const User = require("./src/models/User");
+                            const User = models.User();
                             logger.info(`GDPR: Scrubbing Auth data for user ${task.userId}`);
                             await User.findByIdAndUpdate(task.userId, {
                                 name: "[DELETED USER]",
@@ -424,7 +424,7 @@ const startBlogGDPRListener = async () => {
                         const { id, message: data } = message;
                         const task = JSON.parse(data.data);
                         if (task.type === "GDPR_USER_DELETE") {
-                            const Post = require("./src/models/Post");
+                            const Post = models.Post();
                             logger.info(`GDPR: Scrubbing Blog data for user ${task.userId}`);
                             await Post.updateMany({ author: task.userId }, { isDeleted: true, content: "[DELETED BY USER REQUEST]", title: "[DELETED]" });
                         }
@@ -448,7 +448,7 @@ const startChatGDPRListener = async () => {
                         const { id, message: data } = message;
                         const task = JSON.parse(data.data);
                         if (task.type === "GDPR_USER_DELETE") {
-                            const Message = require("./src/models/Message");
+                            const Message = models.Message();
                             logger.info(`GDPR: Scrubbing Chat data for user ${task.userId}`);
                             await Message.updateMany({ sender: task.userId }, { content: "[DELETED]" });
                         }
@@ -475,7 +475,7 @@ const startInteractionsGDPRListener = async () => {
                         const { id, message: data } = message;
                         const task = JSON.parse(data.data);
                         if (task.type === "GDPR_USER_DELETE") {
-                            const Relationship = require("./src/models/Relationship");
+                            const Relationship = models.Relationship();
                             const Comment = models.Comment();
                             logger.info(`GDPR: Scrubbing Interactions data for user ${task.userId}`);
                             await Promise.all([

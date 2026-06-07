@@ -2,6 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const helmet = require("helmet");
 const cors = require("cors");
+const compression = require("compression");
 const morgan = require("morgan");
 const swaggerUi = require("swagger-ui-express");
 const swaggerDocs = require("./src/docs/swagger");
@@ -29,32 +30,7 @@ const enableVersioning = process.env.ENABLE_VERSIONING === "true";
 const enableContractValidation = process.env.ENABLE_CONTRACT_VALIDATION === "true";
 const enableFaultInjection = process.env.ENABLE_FAULT_INJECTION === "true";
 
-// Global Security Hardening (Zero-Trust)
-if (enableSecurityMiddleware) {
-    app.use(security);
-}
-
-// Trace requests
-if (enableVersioning) {
-    app.use(versioning("v1"));
-}
-app.use((req, res, next) => { logger.info(`Gateway: Entering Metrics`); next(); });
-app.use(metrics.metricsMiddleware("gateway"));
-if (enableFaultInjection) {
-    app.use(faultInjection);
-}
-if (enableContractValidation) {
-    app.use(contractValidator);
-}
-
-// API Documentation
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
-
-app.use(requestTrace);
-
-
-
-// Security and Logging
+// Security and Logging — must be first for CORS, Helmet
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -69,12 +45,29 @@ app.use(cors({
     origin: process.env.CORS_ORIGIN || "http://localhost:3000",
     credentials: true
 }));
+app.use(compression());
 
-// Add Request ID to all outgoing proxy requests
-const onProxyReq = (proxyReq, req, res) => {
-    proxyReq.setHeader("X-Request-ID", req.requestId);
-};
+// Global Security Hardening (Zero-Trust)
+if (enableSecurityMiddleware) {
+    app.use(security);
+}
 
+// Trace requests
+if (enableVersioning) {
+    app.use(versioning("v1"));
+}
+app.use(metrics.metricsMiddleware("gateway"));
+if (enableFaultInjection) {
+    app.use(faultInjection);
+}
+if (enableContractValidation) {
+    app.use(contractValidator);
+}
+
+app.use(requestTrace);
+
+// API Documentation
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 // Proxy Definitions
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || "http://localhost:8000";

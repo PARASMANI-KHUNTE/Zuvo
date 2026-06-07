@@ -8,8 +8,6 @@ const authenticate = (req, res, next) => {
         req.headers.authorization.startsWith("Bearer")
     ) {
         token = req.headers.authorization.split(" ")[1];
-    } else if (req.cookies?.token) {
-        token = req.cookies.token;
     }
 
     if (!token) {
@@ -43,9 +41,6 @@ const authorize = (...roles) => {
 
 const optionalAuth = (req, res, next) => {
     if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
-        return authenticate(req, res, next);
-    }
-    if (req.cookies?.token) {
         return authenticate(req, res, next);
     }
     next();

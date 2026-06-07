@@ -2,6 +2,7 @@ const dotenv = require("dotenv");
 dotenv.config();
 
 const express = require("express");
+const compression = require("compression");
 const { logger, requestTrace, connectDB, connectRedis, metrics, faultInjection, errorHandler, initTracing, HealthCheck } = require("@zuvo/shared");
 const chatRoutes = require("./src/routes/chat");
 
@@ -13,6 +14,7 @@ const app = express();
 app.use(requestTrace);
 app.use(metrics.metricsMiddleware(process.env.SERVICE_NAME));
 app.use(faultInjection);
+app.use(compression());
 app.use(express.json());
 
 // Routes

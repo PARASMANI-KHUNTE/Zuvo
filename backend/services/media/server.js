@@ -2,6 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const helmet = require("helmet");
 const cors = require("cors");
+const compression = require("compression");
 const cookieParser = require("cookie-parser");
 
 dotenv.config();
@@ -25,6 +26,7 @@ app.use(cors({
     origin: process.env.CORS_ORIGIN || "http://localhost:3000",
     credentials: true
 }));
+app.use(compression());
 app.use(cookieParser());
 app.use(express.json());
 

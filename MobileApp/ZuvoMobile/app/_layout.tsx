@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import 'react-native-reanimated';
 import { AuthProvider, useAuth } from '../context/AuthContext';
+import { SocketProvider } from '../context/SocketContext';
 import * as SplashScreen from 'expo-splash-screen';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -51,7 +52,9 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootLayoutNav />
+      <SocketProvider>
+        <RootLayoutNav />
+      </SocketProvider>
     </AuthProvider>
   );
 }

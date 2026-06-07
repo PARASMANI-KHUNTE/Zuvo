@@ -45,6 +45,7 @@ app-example
 # Secrets - DO NOT COMMIT
 google-services.json
 GoogleService-Info.plist
-*.env
 .env
-.env.*
+.env.local
+.env.development
+.env.production

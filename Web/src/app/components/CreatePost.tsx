@@ -4,6 +4,7 @@ import { Image as ImageIcon, Send, Loader2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import apiClient from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import Image from "next/image";
 
 interface CreatePostProps {
     onSuccess?: () => void;
@@ -129,8 +130,8 @@ export default function CreatePost({ onSuccess }: CreatePostProps) {
         <motion.div layout className="glass-panel p-4 w-full space-y-4 shadow-xl border border-white/5">
             {!isExpanded ? (
                 <div onClick={() => setIsExpanded(true)} className="flex items-center gap-4 cursor-text">
-                    <div className="w-10 h-10 rounded-full bg-slate-800 border border-white/10 flex-shrink-0 overflow-hidden">
-                        <img src={userAvatar} alt="user" className="w-full h-full object-cover" />
+                    <div className="w-10 h-10 rounded-full bg-slate-800 border border-white/10 flex-shrink-0 overflow-hidden relative">
+                        <Image src={userAvatar} alt="user" fill unoptimized className="object-cover" />
                     </div>
                     <div className="w-full bg-white/5 border border-white/5 rounded-full px-6 py-2.5 text-slate-500 text-sm hover:bg-white/10 transition-all">
                         What&apos;s on your mind, {user?.name?.split(" ")[0]}?
@@ -139,7 +140,7 @@ export default function CreatePost({ onSuccess }: CreatePostProps) {
             ) : (
                 <form onSubmit={handleSubmit} className="space-y-4 pt-2">
                     <div className="flex items-center gap-2 mb-2 px-1">
-                        <img src={userAvatar} className="w-6 h-6 rounded-full object-cover" />
+                        <Image src={userAvatar} alt="avatar" width={24} height={24} unoptimized className="w-6 h-6 rounded-full object-cover" />
                         <span className="text-xs font-bold text-slate-400">{user?.name}</span>
                     </div>
 
@@ -164,7 +165,7 @@ export default function CreatePost({ onSuccess }: CreatePostProps) {
                     {imagePreview && (
                         <div className="relative rounded-2xl overflow-hidden border border-white/10 aspect-video group bg-slate-900 flex items-center justify-center">
                             {image?.type.startsWith("image/") ? (
-                                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                <Image src={imagePreview} alt="Preview" fill unoptimized className="object-cover" />
                             ) : image?.type.startsWith("video/") ? (
                                 <video src={imagePreview} className="w-full h-full object-cover" controls />
                             ) : image?.type.startsWith("audio/") ? (

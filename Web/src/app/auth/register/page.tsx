@@ -5,6 +5,7 @@ import {
     Mail, Lock, User, ArrowRight, Github, AtSign,
     Loader2, Eye, EyeOff, CheckCircle2, XCircle
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import apiClient from "@/lib/api";
@@ -257,7 +258,7 @@ export default function RegisterPage() {
                         href={GOOGLE_OAUTH_URL}
                         className="flex items-center justify-center gap-3 py-3 px-8 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-sm font-bold glass-panel group w-full"
                     >
-                        <img src="https://www.google.com/favicon.ico" className="w-4 h-4 grayscale group-hover:grayscale-0 transition-all" alt="Google" />
+                        <Image src="https://www.google.com/favicon.ico" width={16} height={16} className="w-4 h-4 grayscale group-hover:grayscale-0 transition-all" alt="Google" unoptimized />
                         Continue with Google
                     </a>
                 </div>

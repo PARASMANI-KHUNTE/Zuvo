@@ -6,7 +6,9 @@ import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/lib/api";
 import { Loader2 } from "lucide-react";
 
-export default function AuthCallbackPage() {
+import { Suspense } from "react";
+
+function CallbackContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { login, user } = useAuth();
@@ -115,5 +117,13 @@ export default function AuthCallbackPage() {
                 )}
             </div>
         </div>
+    );
+}
+
+export default function AuthCallbackPage() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <CallbackContent />
+        </Suspense>
     );
 }

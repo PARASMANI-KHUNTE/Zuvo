@@ -3,6 +3,7 @@ import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingVi
 import { useRouter, Href, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
+import { GATEWAY_URL } from '../../utils/config';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
@@ -60,7 +61,6 @@ export default function LoginScreen() {
     const handleGoogleLogin = async () => {
         setGoogleLoading(true);
         try {
-            const GATEWAY_URL = 'http://localhost:5000';
             // Dynamically creates the correct redirect URL:
             // - Expo Go: exp://192.168.1.4:8081/--/auth/callback
             // - Standalone: zuvomobile://auth/callback

@@ -90,6 +90,12 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    notificationPreferences: {
+        email: { type: Boolean, default: true },
+        push: { type: Boolean, default: true },
+        in_app: { type: Boolean, default: true },
+        dm: { type: Boolean, default: true }
+    },
     refreshTokens: {
         type: [tokenSchema],
         select: false

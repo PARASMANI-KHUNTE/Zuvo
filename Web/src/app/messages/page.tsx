@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { Search, Send, Image as ImageIcon, Phone, Video, MoreVertical, CheckCheck, Loader2, Clock } from "lucide-react";
 import { format, isValid } from "date-fns";
 import { useChat } from "@/hooks/useChat";
@@ -9,7 +10,9 @@ import apiClient from "@/lib/api";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { useToast } from "@/context/ToastContext";
 
-export default function MessagesPage() {
+import { Suspense } from "react";
+
+function MessagesContent() {
     const { user } = useAuth();
     const searchParams = useSearchParams();
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -121,7 +124,7 @@ export default function MessagesPage() {
                                         }`}
                                 >
                                     <div className="relative flex-shrink-0">
-                                        <img src={other.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"} alt={other.name} className="w-12 h-12 rounded-full object-cover border border-white/10" />
+                                        <Image src={other.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"} alt={other.name} width={48} height={48} unoptimized className="w-12 h-12 rounded-full object-cover border border-white/10" />
                                         {/* Presence logic could be added here */}
                                     </div>
                                     <div className="flex-1 min-w-0">
@@ -152,7 +155,7 @@ export default function MessagesPage() {
                         {/* Chat Header */}
                         <div className="p-4 border-b border-white/5 flex justify-between items-center bg-[#0f172a]/20 backdrop-blur-md absolute top-0 w-full z-10">
                             <div className="flex items-center gap-3">
-                                <img src={getOtherParticipant(activeChat.participants).avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"} className="w-10 h-10 rounded-full object-cover border border-white/10" alt="Avatar" />
+                                <Image src={getOtherParticipant(activeChat.participants).avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"} className="w-10 h-10 rounded-full object-cover border border-white/10" alt="Avatar" width={40} height={40} unoptimized />
                                 <div>
                                     <h2 className="font-bold text-slate-100">{activeChat.isGroup ? activeChat.groupName : getOtherParticipant(activeChat.participants).name}</h2>
                                     <p className="text-xs text-primary">{isTyping ? "typing..." : "Online"}</p>
@@ -245,5 +248,13 @@ export default function MessagesPage() {
 
             </div>
         </div>
+    );
+}
+
+export default function MessagesPage() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <MessagesContent />
+        </Suspense>
     );
 }
