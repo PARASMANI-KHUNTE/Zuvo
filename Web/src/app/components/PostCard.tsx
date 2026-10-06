@@ -12,7 +12,8 @@ interface PostCardProps {
     id: string;
     author: string;
     avatar?: string;
-    content: string;
+    title?: string;
+    content?: string;
     image?: string;
     media?: Array<{ url: string; type: string; publicId: string }>;
     likes: number;
@@ -29,11 +30,12 @@ const PostCard = React.memo(function PostCard({
     id,
     author,
     avatar,
-    content,
+    title,
+    content = "",
     image,
     media = [],
-    likes: initialLikes,
-    comments,
+    likes: initialLikes = 0,
+    comments = 0,
     timestamp,
     initialIsLiked = false,
     initialIsSaved = false,
@@ -168,7 +170,8 @@ const PostCard = React.memo(function PostCard({
         router.push(`/post/${id}/edit`);
     };
 
-    const renderContentWithLinks = (text: string) => {
+    const renderContentWithLinks = (text?: string) => {
+        if (!text) return null;
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         return text.split(urlRegex).map((part, i) => {
             if (part.match(urlRegex)) {
@@ -267,9 +270,16 @@ const PostCard = React.memo(function PostCard({
 
             {/* Content & Media */}
             <div className="space-y-2.5">
-                <p className="text-zinc-200 text-xs leading-relaxed whitespace-pre-wrap font-normal">
-                    {renderContentWithLinks(content)}
-                </p>
+                {title && (
+                    <h2 className="text-zinc-100 font-semibold text-xs leading-snug">
+                        {title}
+                    </h2>
+                )}
+                {content ? (
+                    <p className="text-zinc-200 text-xs leading-relaxed whitespace-pre-wrap font-normal">
+                        {renderContentWithLinks(content)}
+                    </p>
+                ) : null}
 
                 {/* Media Render */}
                 {media && media.length > 0 ? (

@@ -113,6 +113,7 @@ export default function Home() {
                     id={post._id}
                     author={post.author.username || "anonymous"}
                     avatar={post.author.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author._id}`}
+                    title={post.title}
                     content={post.content}
                     image={post.image !== "no-photo.jpg" ? post.image : undefined}
                     timestamp={new Date(post.createdAt).toLocaleDateString(undefined, {

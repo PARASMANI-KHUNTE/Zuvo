@@ -340,7 +340,8 @@ function LikedPostsTab({ userId }: { userId: string }) {
                     id={post._id || post.id}
                     author={post.author?.name || "Unknown"}
                     avatar={post.author?.avatar}
-                    content={post.content}
+                    title={post.title}
+                    content={post.content || ""}
                     image={post.image !== "no-photo.jpg" ? post.image : undefined}
                     media={post.media}
                     likes={post.likesCount || 0}

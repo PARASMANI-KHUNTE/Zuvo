@@ -115,8 +115,11 @@ function SearchResults() {
                                         id={post.id || post._id}
                                         author={post.author?.name || "Anonymous"}
                                         avatar={post.author?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=me"}
-                                        content={post.content}
+                                        title={post.title}
+                                        content={post.content || ""}
                                         image={post.image !== "no-photo.jpg" ? post.image : undefined}
+                                        media={post.media}
+                                        tags={post.tags}
                                         timestamp={format(new Date(post.createdAt), "MMM d, yyyy")}
                                         likes={post.likesCount || 0}
                                         comments={post.commentsCount || 0}

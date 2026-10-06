@@ -110,7 +110,7 @@ app.get("/api/v1/search", rateLimiter(3600, 500), async (req, res, next) => {
                     { tags: { $in: [searchRegex] } }
                 ]
             })
-                .select("title slug tags author media image createdAt")
+                .select("title content slug tags author media image likesCount commentsCount createdAt")
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(parseInt(limit))
