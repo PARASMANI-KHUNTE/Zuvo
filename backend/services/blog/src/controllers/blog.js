@@ -63,6 +63,14 @@ exports.getPosts = asyncHandler(async (req, res, next) => {
         filter.author = req.query.author;
     }
 
+    // Support filtering by media type: type=image|video|audio|document or type=text (no media)
+    const mediaType = (req.query.type || "").toLowerCase();
+    if (mediaType === "text" || mediaType === "text-only") {
+        filter.media = { $size: 0 };
+    } else if (["image", "video", "audio", "document"].includes(mediaType)) {
+        filter["media.type"] = mediaType;
+    }
+
     const total = await Post.countDocuments(filter);
 
     const posts = await Post.find(filter)

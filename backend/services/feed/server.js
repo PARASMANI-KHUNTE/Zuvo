@@ -20,6 +20,30 @@ app.use(compression());
 app.use(express.json());
 
 /**
+ * @openapi
+ * /api/v1/feed:
+ *   get:
+ *     tags: [Feed]
+ *     summary: Get the personalized feed for the authenticated user
+ *     description: Served from the pre-computed Redis feed when available, otherwise falls back to posts from followed users.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Paginated feed items
+ *       401:
+ *         description: Unauthorized
  * @desc    Get personalized feed for a user
  * @route   GET /api/v1/feed
  * @access  Private
@@ -35,13 +59,20 @@ app.get("/api/v1/feed", authenticate, async (req, res, next) => {
         const cachedFeed = await redisClient.lRange(`user:${userId}:feed`, 0, 50);
 
         if (cachedFeed && cachedFeed.length > 0) {
-            const items = cachedFeed.map(item => JSON.parse(item));
+            const items = cachedFeed
+                .map(item => {
+                    try { return JSON.parse(item); } catch { return null; }
+                })
+                .filter(Boolean);
             const paginated = items.slice(skip, skip + limit);
             return res.status(200).json({
                 success: true,
-                data: paginated,
+                count: paginated.length,
+                total: items.length,
                 page,
-                limit
+                limit,
+                pages: Math.ceil(items.length / limit),
+                data: paginated
             });
         }
 

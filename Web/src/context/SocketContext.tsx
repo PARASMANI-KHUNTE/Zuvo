@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "./AuthContext";
 import { useToast } from "./ToastContext";
+import { refreshAccessToken } from "@/lib/api";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_REALTIME_URL || "http://localhost:5000";
 
@@ -21,6 +22,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const [isConnected, setIsConnected] = useState(false);
     const socketRef = useRef<Socket | null>(null);
     const connectionVersion = useRef(0);
+    const lastAuthRefresh = useRef(0);
 
     const connectSocket = useCallback((token: string) => {
         const version = ++connectionVersion.current;
@@ -49,7 +51,15 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
         newSocket.on("connect_error", (err) => {
             if (err.message === "Authentication required" || err.message === "Invalid or expired token") {
-                // AuthContext should handle refresh; this effect re-runs on accessToken change.
+                // Exchange the refresh cookie for a new access token. The refreshed
+                // token updates AuthContext.accessToken, which re-runs the effect
+                // below and reconnects with valid credentials.
+                newSocket.disconnect();
+                const now = Date.now();
+                if (now - lastAuthRefresh.current > 10000) {
+                    lastAuthRefresh.current = now;
+                    refreshAccessToken();
+                }
             }
         });
 
@@ -76,7 +86,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
         return () => {
             s.off("notification");
-            s.close();
+            s.disconnect();
             if (socketRef.current === s) {
                 socketRef.current = null;
             }

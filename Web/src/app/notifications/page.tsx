@@ -12,7 +12,7 @@ type NotificationType = "LIKE" | "FOLLOW" | "COMMENT" | "SYSTEM";
 interface NotificationItem {
     _id: string;
     type: NotificationType;
-    actor?: { name: string; username: string; avatar: string };
+    actor?: { id?: string; name: string; username: string; avatar: string };
     content?: string;
     createdAt: string;
     isRead: boolean;
@@ -36,6 +36,8 @@ export default function NotificationsPage() {
     const [followRequests, setFollowRequests] = useState<FollowRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [filter, setFilter] = useState<"ALL" | "LIKE" | "FOLLOW" | "COMMENT">("ALL");
+    const [followedActors, setFollowedActors] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
         if (authLoading) return;
@@ -109,6 +111,32 @@ export default function NotificationsPage() {
         }
     };
 
+    const handleFollowBack = async (notif: NotificationItem) => {
+        const actorId = notif.actor?.id;
+        if (!actorId || followedActors[actorId]) return;
+
+        setFollowedActors(prev => ({ ...prev, [actorId]: true }));
+        try {
+            // toggleFollow is idempotent: a second call would unfollow, so we
+            // lock the button locally after the first successful follow.
+            await apiClient.post("/interactions/follow", { userId: actorId });
+        } catch (err) {
+            setFollowedActors(prev => ({ ...prev, [actorId]: false }));
+            console.error("Failed to follow back", err);
+        }
+    };
+
+    const FILTERS = [
+        { id: "ALL", label: "All" },
+        { id: "LIKE", label: "Likes" },
+        { id: "FOLLOW", label: "Follows" },
+        { id: "COMMENT", label: "Comments" },
+    ] as const;
+
+    const visibleNotifications = filter === "ALL"
+        ? notifications
+        : notifications.filter(notif => notif.type === filter);
+
     const getIcon = (type: NotificationType) => {
         switch (type) {
             case "LIKE": return <Heart className="w-5 h-5 text-rose-500 fill-rose-500" />;
@@ -150,57 +178,79 @@ export default function NotificationsPage() {
     }
 
     return (
-        <div className="w-full max-w-2xl mx-auto pb-20 space-y-6">
+        <div className="w-full max-w-2xl mx-auto space-y-5">
             {/* Header */}
-            <div className="flex items-center justify-between px-2 pt-4">
-                <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                    <BellRing className="w-6 h-6 text-primary" /> Notifications
+            <div className="flex items-center justify-between pb-1">
+                <h1 className="text-lg font-bold text-white flex items-center gap-2">
+                    <BellRing className="w-4 h-4 text-zinc-400" /> Notifications
                 </h1>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                     <button
                         onClick={markAllRead}
                         title="Mark all as read"
-                        className="p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors group"
+                        className="p-1.5 hover:bg-white/[0.06] rounded-lg transition-colors text-zinc-400 hover:text-white"
                     >
-                        <Check className="w-5 h-5 text-slate-400 group-hover:text-primary" />
+                        <Check className="w-4 h-4" />
                     </button>
-                    <button title="Notification Settings" className="p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors group">
-                        <Settings className="w-5 h-5 text-slate-400 group-hover:text-white" />
+                    <button
+                        title="Notification Settings"
+                        onClick={() => router.push("/settings?tab=notifications")}
+                        className="p-1.5 hover:bg-white/[0.06] rounded-lg transition-colors text-zinc-400 hover:text-white"
+                    >
+                        <Settings className="w-4 h-4" />
                     </button>
                 </div>
             </div>
 
+            {/* Filter Tabs */}
+            <div className="flex items-center gap-1.5">
+                {FILTERS.map((tab) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setFilter(tab.id)}
+                        className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                            filter === tab.id
+                                ? "bg-white text-zinc-950 font-semibold"
+                                : "bg-white/[0.04] text-zinc-400 hover:bg-white/[0.08] hover:text-white"
+                        }`}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
             {/* Follow Requests Section */}
             {followRequests.length > 0 && (
-                <div className="space-y-4">
-                    <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider px-2">Follow Requests</h2>
-                    <div className="glass-panel rounded-2xl overflow-hidden divide-y divide-white/5">
+                <div className="space-y-3">
+                    <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider px-1">Follow Requests</h2>
+                    <div className="bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08] rounded-xl overflow-hidden divide-y divide-white/[0.06]">
                         {followRequests.map((req) => (
-                            <div key={req.id} className="p-5 flex items-center justify-between gap-4 hover:bg-white/5 transition-colors">
+                            <div key={req.id} className="p-4 flex items-center justify-between gap-3 hover:bg-white/[0.02] transition-colors">
                                 <div className="flex items-center gap-3">
-                                    <Image
-                                        src={req.user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"}
-                                        alt={req.user?.name || "User"}
-                                        width={40}
-                                        height={40}
-                                        unoptimized
-                                        className="w-10 h-10 rounded-full object-cover border border-white/10"
-                                    />
+                                    <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 border border-white/10 relative flex-shrink-0">
+                                        <Image
+                                            src={req.user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"}
+                                            alt={req.user?.name || "User"}
+                                            fill
+                                            unoptimized
+                                            className="object-cover"
+                                        />
+                                    </div>
                                     <div className="min-w-0">
-                                        <p className="text-sm font-bold text-white truncate">{req.user?.name}</p>
-                                        <p className="text-xs text-slate-400 truncate">@{req.user?.username}</p>
+                                        <p className="text-xs font-semibold text-white truncate">{req.user?.name}</p>
+                                        <p className="text-[11px] text-zinc-500 truncate">@{req.user?.username}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => handleFollowRequest(req.id, "accept")}
-                                        className="bg-primary hover:bg-primary/80 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all active:scale-95"
+                                        className="btn-primary !text-xs !py-1 !px-3"
                                     >
                                         Accept
                                     </button>
                                     <button
                                         onClick={() => handleFollowRequest(req.id, "reject")}
-                                        className="bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold px-4 py-2 rounded-xl transition-all active:scale-95 border border-white/10"
+                                        className="btn-secondary !text-xs !py-1 !px-3"
                                     >
                                         Reject
                                     </button>
@@ -212,65 +262,74 @@ export default function NotificationsPage() {
             )}
 
             {/* Notification List Section */}
-            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider px-2">Recent Notifications</h2>
-            <div className="glass-panel rounded-2xl overflow-hidden divide-y divide-white/5">
-                {notifications.length > 0 ? (
-                    notifications.map((notif) => (
-                        <div
-                            key={notif._id}
-                            onClick={() => !notif.isRead && markAsRead(notif._id)}
-                            className={`p-5 flex items-start gap-4 transition-colors cursor-pointer hover:bg-white/5 ${!notif.isRead ? 'bg-primary/5' : ''}`}
-                        >
-                            {/* Icon Badge */}
-                            <div className="flex-shrink-0 mt-1">
-                                {getIcon(notif.type)}
-                            </div>
+            <div className="space-y-3">
+                <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider px-1">Recent Notifications</h2>
+                <div className="bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08] rounded-xl overflow-hidden divide-y divide-white/[0.06]">
+                    {visibleNotifications.length > 0 ? (
+                        visibleNotifications.map((notif) => (
+                            <div
+                                key={notif._id}
+                                onClick={() => !notif.isRead && markAsRead(notif._id)}
+                                className={`p-4 flex items-start gap-3.5 transition-colors cursor-pointer hover:bg-white/[0.02] ${!notif.isRead ? 'bg-white/[0.03]' : ''}`}
+                            >
+                                {/* Icon Badge */}
+                                <div className="flex-shrink-0 mt-0.5">
+                                    {getIcon(notif.type)}
+                                </div>
 
-                            {/* Content */}
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Image
-                                        src={notif.actor?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"}
-                                        alt={notif.actor?.name || "User"}
-                                        width={32}
-                                        height={32}
-                                        unoptimized
-                                        className="w-8 h-8 rounded-full object-cover border border-white/10"
-                                    />
-                                    <p className="text-sm text-slate-300">
-                                        {getMessage(notif.type, notif.actor?.name || "System")}
+                                {/* Content */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <div className="w-6 h-6 rounded-full overflow-hidden bg-zinc-800 border border-white/10 relative flex-shrink-0">
+                                            <Image
+                                                src={notif.actor?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"}
+                                                alt={notif.actor?.name || "User"}
+                                                fill
+                                                unoptimized
+                                                className="object-cover"
+                                            />
+                                        </div>
+                                        <p className="text-xs text-zinc-300">
+                                            {getMessage(notif.type, notif.actor?.name || "System")}
+                                        </p>
+                                    </div>
+
+                                    {notif.content && (
+                                        <p className="text-zinc-400 text-xs mt-1 line-clamp-2">
+                                            {notif.content}
+                                        </p>
+                                    )}
+
+                                    <p className="text-[10px] text-zinc-600 font-medium mt-1.5">
+                                        {formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true })}
                                     </p>
                                 </div>
 
-                                {notif.content && (
-                                    <p className="text-slate-400 text-sm mt-2 line-clamp-2">
-                                        {notif.content}
-                                    </p>
-                                )}
-
-                                <p className="text-xs text-slate-500 font-medium mt-2">
-                                    {formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true })}
-                                </p>
+                                {/* Optional Right Action */}
+                                <div className="flex-shrink-0">
+                                    {!notif.isRead && <div className="w-1.5 h-1.5 rounded-full bg-white mb-2 mx-auto" />}
+                                    {notif.type === "FOLLOW" && notif.actor?.id && (
+                                        <button
+                                            onClick={() => handleFollowBack(notif)}
+                                            disabled={!!followedActors[notif.actor.id]}
+                                            className="btn-secondary !text-xs !py-1 !px-3 disabled:opacity-40"
+                                        >
+                                            {followedActors[notif.actor.id] ? "Following" : "Follow Back"}
+                                        </button>
+                                    )}
+                                </div>
                             </div>
-
-                            {/* Optional Right Action */}
-                            <div className="flex-shrink-0">
-                                {!notif.isRead && <div className="w-2 h-2 rounded-full bg-primary mb-2 mx-auto" />}
-                                {notif.type === "FOLLOW" && (
-                                    <button className="glass-panel px-4 py-1.5 rounded-full text-xs font-bold text-primary hover:text-white hover:bg-white/10 transition-colors">
-                                        Follow Back
-                                    </button>
-                                )}
-                            </div>
+                        ))
+                    ) : (
+                        <div className="p-12 text-center">
+                            <BellRing className="w-10 h-10 text-zinc-600 mx-auto mb-3 opacity-30" />
+                            <p className="text-zinc-400 font-medium text-xs">
+                                {notifications.length > 0 ? "No notifications in this filter" : "No notifications yet"}
+                            </p>
+                            <p className="text-zinc-600 text-[11px] mt-1">When people interact with you, you&apos;ll see it here.</p>
                         </div>
-                    ))
-                ) : (
-                    <div className="p-12 text-center">
-                        <BellRing className="w-12 h-12 text-slate-600 mx-auto mb-4 opacity-20" />
-                        <p className="text-slate-400 font-medium">No notifications yet</p>
-                        <p className="text-slate-500 text-sm mt-1">When people interact with you, you&apos;ll see it here.</p>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
 
             {/* End of list */}

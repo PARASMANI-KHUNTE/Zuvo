@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jwtDecode } from 'jwt-decode';
+import { clearTokens, onSessionExpired, storeTokens, default as api } from '../utils/api';
 
 interface User {
     id: string;
@@ -14,7 +15,7 @@ interface AuthContextType {
     user: User | null;
     accessToken: string | null;
     isLoading: boolean;
-    login: (token: string, userData?: any) => Promise<void>;
+    login: (token: string, userData?: any, refreshToken?: string) => Promise<void>;
     logout: () => Promise<void>;
 }
 
@@ -27,6 +28,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         loadToken();
+    }, []);
+
+    // Refresh failed somewhere in the API layer: the user must sign in again.
+    useEffect(() => {
+        return onSessionExpired(() => {
+            setAccessToken(null);
+            setUser(null);
+        });
     }, []);
 
     const loadToken = async () => {
@@ -57,8 +66,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const login = async (token: string, userData?: any) => {
-        await AsyncStorage.setItem('auth_token', token);
+    const login = async (token: string, userData?: any, refreshToken?: string) => {
+        await storeTokens(token, refreshToken);
         setAccessToken(token);
 
         if (userData) {
@@ -80,7 +89,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const logout = async () => {
-        await AsyncStorage.removeItem('auth_token');
+        // Best effort: revoke the refresh session server-side before clearing local state.
+        try {
+            const refreshToken = await AsyncStorage.getItem('refresh_token');
+            await api.post('/api/v1/auth/logout', refreshToken ? { refreshToken } : {});
+        } catch {
+            // Session may already be invalid; local sign-out still proceeds.
+        }
+        await clearTokens();
         setAccessToken(null);
         setUser(null);
     };

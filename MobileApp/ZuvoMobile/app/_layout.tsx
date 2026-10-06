@@ -42,6 +42,9 @@ function RootLayoutNav() {
         <Stack.Screen name="auth/register" options={{ animation: 'fade' }} />
         <Stack.Screen name="auth/callback" options={{ animation: 'none' }} />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="compose" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="messages" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal', headerShown: true }} />
       </Stack>
       <StatusBar style="auto" />

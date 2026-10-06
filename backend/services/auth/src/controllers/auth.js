@@ -11,6 +11,12 @@ const buildRefreshCookieOptions = () => ({
     path: "/"
 });
 
+// Native clients (Expo/React Native) cannot hold httpOnly cookies, so they ask
+// for the refresh token in the response body instead. Web clients keep the
+// httpOnly cookie only, so the refresh token never lands in JS-readable storage.
+const isMobileClient = (req) =>
+    String(req.get("x-client-platform") || req.body?.clientPlatform || "").toLowerCase() === "mobile";
+
 /**
  * @desc    Generate tokens and send in response
  */
@@ -45,6 +51,7 @@ const sendTokenResponse = async (user, statusCode, res, req) => {
         .json({
             success: true,
             accessToken,
+            ...(isMobileClient(req) || req.body?.refreshToken ? { refreshToken } : {}),
             user: {
                 id: user._id,
                 name: user.name,
@@ -173,7 +180,7 @@ exports.login = asyncHandler(async (req, res, next) => {
 
 // @route   POST /api/v1/auth/logout
 exports.logout = asyncHandler(async (req, res, next) => {
-    const refreshToken = req.cookies?.refreshToken;
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
     if (refreshToken) {
         const user = await User.findById(req.user.id).select("+refreshTokens");
         if (user) {
@@ -196,8 +203,8 @@ exports.logout = asyncHandler(async (req, res, next) => {
 
 // @route   POST /api/v1/auth/refresh-token
 exports.refreshToken = asyncHandler(async (req, res, next) => {
-    const refreshToken = req.cookies.refreshToken;
-    logger.info(`refreshToken: Attempting refresh. Cookie present: ${!!refreshToken}`);
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+    logger.info(`refreshToken: Attempting refresh. Cookie present: ${!!req.cookies?.refreshToken}, body present: ${!!req.body?.refreshToken}`);
 
     if (!refreshToken) {
         return res.status(401).json({ success: false, message: "No refresh token provided" });

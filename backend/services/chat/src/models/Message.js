@@ -15,8 +15,19 @@ const messageSchema = new mongoose.Schema({
         required: function () { return !this.attachments || this.attachments.length === 0; }
     },
     attachments: [{
-        type: String, // URL to file (from Media service)
-        fileType: String // image, video, document
+        _id: false,
+        url: {
+            type: String,
+            required: true
+        },
+        publicId: {
+            type: String
+        },
+        fileType: {
+            type: String,
+            enum: ["image", "video", "audio", "document"],
+            default: "image"
+        }
     }],
     isRead: {
         type: Boolean,

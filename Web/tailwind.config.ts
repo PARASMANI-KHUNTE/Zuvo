@@ -11,25 +11,30 @@ const config: Config = {
             colors: {
                 background: "var(--background)",
                 foreground: "var(--foreground)",
+                surface: {
+                    DEFAULT: "#111113",
+                    subtle: "#18181b",
+                    elevated: "#1f1f23",
+                },
                 primary: {
-                    DEFAULT: "#00f2ff",
-                    dark: "#00c8d4",
+                    DEFAULT: "#ffffff",
+                    dark: "#e4e4e7",
+                    foreground: "#09090b",
                 },
                 secondary: {
-                    DEFAULT: "#7000ff",
-                    dark: "#5b00cc",
+                    DEFAULT: "#a1a1aa",
+                    dark: "#71717a",
                 },
-                accent: "#ff00e5",
-            },
-            backgroundImage: {
-                "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
-                "gradient-conic": "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
-                "neon-gradient": "linear-gradient(to right, #00f2ff, #7000ff)",
+                accent: {
+                    DEFAULT: "#e4e4e7",
+                    highlight: "#ffffff",
+                },
+                border: "rgba(255, 255, 255, 0.08)",
             },
             boxShadow: {
-                "neon-cyan": "0 0 10px rgba(0, 242, 255, 0.5), 0 0 20px rgba(0, 242, 255, 0.3)",
-                "neon-purple": "0 0 10px rgba(112, 0, 255, 0.5), 0 0 20px rgba(112, 0, 255, 0.3)",
-                "neon-pink": "0 0 10px rgba(255, 0, 229, 0.5), 0 0 20px rgba(255, 0, 229, 0.3)",
+                "subtle": "0 1px 2px 0 rgba(0, 0, 0, 0.4)",
+                "card": "0 4px 20px -2px rgba(0, 0, 0, 0.5)",
+                "elevation": "0 10px 30px -5px rgba(0, 0, 0, 0.7)",
             },
         },
     },

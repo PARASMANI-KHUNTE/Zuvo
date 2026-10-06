@@ -137,10 +137,9 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
     }
 
     return (
-        <div className="w-full max-w-5xl mx-auto flex flex-col lg:flex-row gap-8 pb-20 mt-4">
-
+        <div className="flex flex-col xl:flex-row gap-6 lg:gap-8 items-start justify-between w-full">
             {/* Main Content Area */}
-            <div className="flex-1 space-y-6">
+            <div className="w-full xl:max-w-[620px] 2xl:max-w-[660px] flex-1 min-w-0 space-y-4">
                 {/* Back Button */}
                 <button
                     type="button"
@@ -148,23 +147,26 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                     className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-2 group"
                 >
                     <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                    <span className="font-semibold text-sm">Back</span>
+                    <span className="font-medium text-xs">Back</span>
                 </button>
 
                 {/* Main Post Card */}
-                <div className="glass-panel p-6 md:p-8 space-y-6 rounded-3xl border border-white/10 shadow-2xl">
+                <div className="bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08] p-5 sm:p-6 space-y-5 rounded-xl">
                     {/* Header */}
                     <div className="flex items-center justify-between">
-                        <Link href={`/profile/${post.author?.username}`} className="flex items-center gap-4 hover:opacity-80 transition-opacity">
-                            <Image
-                                src={post.author?.avatar || fallbackAvatar(post.author?.username || "author")}
-                                alt={post.author?.name || "Author"}
-                                width={48} height={48} unoptimized
-                                className="w-12 h-12 rounded-full border border-white/10 object-cover"
-                            />
+                        <Link href={`/profile/${post.author?.username}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                            <div className="w-10 h-10 rounded-full border border-white/10 bg-zinc-800 relative overflow-hidden flex-shrink-0">
+                                <Image
+                                    src={post.author?.avatar || fallbackAvatar(post.author?.username || "author")}
+                                    alt={post.author?.name || "Author"}
+                                    fill
+                                    unoptimized
+                                    className="object-cover"
+                                />
+                            </div>
                             <div>
-                                <h2 className="font-bold text-lg text-white">{post.author?.name}</h2>
-                                <p className="text-sm text-slate-500">@{post.author?.username} · {formatDistanceToNow(new Date(post.createdAt))} ago</p>
+                                <h2 className="font-semibold text-sm text-white">{post.author?.name}</h2>
+                                <p className="text-xs text-zinc-500">@{post.author?.username} · {formatDistanceToNow(new Date(post.createdAt))} ago</p>
                             </div>
                         </Link>
                         <button
@@ -174,27 +176,27 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                                 toast("Post ID copied to clipboard!", "success");
                             }}
                             title="Copy Post ID"
-                            className="p-2 hover:bg-white/5 rounded-full transition-colors text-slate-500"
+                            className="p-1.5 hover:bg-white/[0.06] rounded-lg transition-colors text-zinc-500 hover:text-zinc-300"
                         >
-                            <MoreHorizontal className="w-6 h-6" />
+                            <MoreHorizontal className="w-4 h-4" />
                         </button>
                     </div>
 
                     {/* Body & Unified Media */}
-                    <div className="space-y-4">
-                        <h1 className="text-2xl font-black text-white tracking-tight">{post.title}</h1>
-                        <p className="text-slate-200 text-lg leading-relaxed whitespace-pre-wrap">{post.content}</p>
+                    <div className="space-y-3.5">
+                        <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug">{post.title}</h1>
+                        <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
 
                         {(post.media && post.media.length > 0) ? (
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                                 {post.media.map((item: any, idx: number) => (
-                                    <div key={idx} className="rounded-2xl overflow-hidden border border-white/5 shadow-2xl bg-slate-900/50">
+                                    <div key={idx} className="rounded-lg overflow-hidden border border-white/[0.08] bg-zinc-950">
                                         {item.type === "image" ? (
-                                            <Image src={item.url} alt="Post visual" width={800} height={600} unoptimized className="w-full h-auto object-cover max-h-[800px]" />
+                                            <Image src={item.url} alt="Post visual" width={800} height={600} unoptimized className="w-full h-auto object-cover max-h-[600px]" />
                                         ) : item.type === "video" ? (
-                                            <video src={item.url} controls className="w-full h-auto max-h-[800px]" />
+                                            <video src={item.url} controls className="w-full h-auto max-h-[600px]" />
                                         ) : item.type === "audio" ? (
-                                            <div className="p-6">
+                                            <div className="p-4">
                                                 <audio src={item.url} controls className="w-full" />
                                             </div>
                                         ) : (
@@ -202,14 +204,14 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                                                 href={item.url}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="flex items-center gap-4 p-6 hover:bg-white/5 transition-all group/file"
+                                                className="flex items-center gap-3 p-4 hover:bg-white/[0.04] transition-all"
                                             >
-                                                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover/file:bg-primary group-hover/file:text-white transition-all">
-                                                    <Share2 className="w-6 h-6" />
+                                                <div className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center text-zinc-300">
+                                                    <Share2 className="w-4 h-4" />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-lg font-bold text-white truncate">Attached Document</p>
-                                                    <p className="text-sm text-slate-500 font-medium">Click to view/download attachment</p>
+                                                    <p className="text-xs font-medium text-white truncate">Attached Document</p>
+                                                    <p className="text-[11px] text-zinc-500">Click to view/download</p>
                                                 </div>
                                             </a>
                                         )}
@@ -217,18 +219,18 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                                 ))}
                             </div>
                         ) : post.image && post.image !== "no-photo.jpg" && (
-                            <div className="rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
-                                <Image src={post.image} alt="Post visual" width={800} height={600} unoptimized className="w-full h-auto object-cover max-h-[600px]" />
+                            <div className="rounded-lg overflow-hidden border border-white/[0.08]">
+                                <Image src={post.image} alt="Post visual" width={800} height={600} unoptimized className="w-full h-auto object-cover max-h-[500px]" />
                             </div>
                         )}
 
                         {post.tags?.length > 0 && (
-                            <div className="flex flex-wrap gap-2 pt-2">
+                            <div className="flex flex-wrap gap-1.5 pt-1">
                                 {post.tags.map((tag: string) => (
                                     <span
                                         key={tag}
                                         onClick={() => router.push(`/search?q=${tag}&type=posts`)}
-                                        className="text-secondary bg-secondary/10 px-3 py-1 rounded-full text-xs font-bold hover:bg-secondary/20 transition-all cursor-pointer"
+                                        className="text-[10px] font-medium text-zinc-400 bg-white/[0.04] hover:bg-white/[0.08] hover:text-zinc-200 border border-white/[0.06] px-2 py-0.5 rounded transition-colors cursor-pointer"
                                     >
                                         #{tag}
                                     </span>
@@ -238,35 +240,38 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-6 pt-6 border-t border-white/5">
+                    <div className="flex items-center gap-5 pt-3 border-t border-white/[0.06]">
                         <button
                             type="button"
                             onClick={handleLike}
                             disabled={liking}
-                            className={`flex items-center gap-2 transition-colors hover:text-rose-500 ${isLiked ? "text-rose-500" : "text-slate-400"}`}
+                            className={`flex items-center gap-1.5 text-xs transition-colors ${isLiked ? "text-white font-medium" : "text-zinc-500 hover:text-zinc-200"}`}
                         >
-                            <Heart className={`w-6 h-6 transition-transform active:scale-125 ${isLiked ? "fill-rose-500" : ""}`} />
-                            <span className="font-bold">{likeCount}</span>
+                            <Heart className={`w-3.5 h-3.5 ${isLiked ? "fill-white text-white" : ""}`} />
+                            <span className="tabular-nums">{likeCount}</span>
                         </button>
-                        <div className="flex items-center gap-2 text-slate-400">
-                            <MessageCircle className="w-6 h-6" />
-                            <span className="font-bold">{comments.length}</span>
+                        <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span className="tabular-nums">{comments.length}</span>
                         </div>
-                        <button type="button" onClick={handleShare} className="flex items-center gap-2 text-slate-400 ml-auto hover:text-primary transition-colors">
-                            <Share2 className="w-5 h-5" />
-                            <span className="text-sm font-semibold">Share</span>
+                        <button type="button" onClick={handleShare} className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-200 ml-auto transition-colors">
+                            <Share2 className="w-3.5 h-3.5" />
+                            <span>Share</span>
                         </button>
                     </div>
                 </div>
 
                 {/* Comment Input */}
-                <form onSubmit={handleCommentSubmit} className="glass-panel p-4 rounded-2xl border border-white/5 flex items-center gap-4">
-                    <Image
-                        src={currentUser?.avatar || fallbackAvatar(currentUser?.username || "me")}
-                        width={40} height={40} unoptimized
-                        className="w-10 h-10 rounded-full border border-white/10 object-cover"
-                        alt="My Profile"
-                    />
+                <form onSubmit={handleCommentSubmit} className="bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08] p-3 rounded-xl flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-full bg-zinc-800 border border-white/10 relative overflow-hidden flex-shrink-0">
+                        <Image
+                            src={currentUser?.avatar || fallbackAvatar(currentUser?.username || "me")}
+                            fill
+                            unoptimized
+                            className="object-cover"
+                            alt="My Profile"
+                        />
+                    </div>
                     <div className="flex-1 relative">
                         <input
                             type="text"
@@ -274,24 +279,21 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                             onChange={(e) => setCommentText(e.target.value)}
                             placeholder="Add a comment..."
                             disabled={submitting}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-4 pr-12 text-white text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
+                            className="w-full bg-transparent border-none outline-none text-xs text-zinc-200 placeholder:text-zinc-500"
                         />
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2 text-slate-500">
-                            <Smile className="w-4 h-4 cursor-pointer hover:text-white" />
-                        </div>
                     </div>
                     <button
                         type="submit"
                         disabled={!commentText.trim() || submitting}
-                        className={`p-3 rounded-xl transition-all ${commentText.trim() && !submitting ? "bg-primary text-white shadow-lg shadow-primary/20" : "bg-white/5 text-slate-500 cursor-not-allowed"}`}
+                        className="btn-primary !text-xs !py-1.5 !px-3 disabled:opacity-40"
                     >
-                        {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Reply"}
                     </button>
                 </form>
 
                 {/* Comments List */}
-                <div className="space-y-4">
-                    <h3 className="text-xl font-bold text-white px-2">Discussion ({comments.length})</h3>
+                <div className="space-y-3">
+                    <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider px-1">Discussion ({comments.length})</h3>
                     {comments.length > 0 ? comments.map((comm) => (
                         <CommentItem
                             key={comm._id}
@@ -308,10 +310,10 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
             </div>
 
             {/* Sidebar Context */}
-            <div className="hidden lg:flex flex-col w-72 space-y-6">
+            <aside className="hidden xl:flex flex-col w-72 2xl:w-80 flex-shrink-0 sticky top-20 space-y-4">
                 <TrendingSidebar />
                 <SuggestedUsers />
-            </div>
+            </aside>
         </div>
     );
 }
@@ -390,37 +392,40 @@ const CommentItem = React.memo(function CommentItem({ comment, postId, currentUs
         <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`glass-panel p-5 rounded-2xl border border-white/5 space-y-3 ${depth > 0 ? 'ml-8 md:ml-12 relative before:absolute before:-left-6 before:top-0 before:bottom-0 before:w-px before:bg-white/10' : ''}`}
+            className={`bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08] p-3.5 rounded-xl space-y-2.5 ${depth > 0 ? 'ml-6 sm:ml-8 relative before:absolute before:-left-4 before:top-0 before:bottom-0 before:w-px before:bg-white/[0.08]' : ''}`}
         >
             <div className="flex items-center justify-between">
-                <Link href={`/profile/${comment.user?.username}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                    <Image
-                        src={comment.user?.avatar || fallbackAvatar(comment.user?.username || "commenter")}
-                        alt={comment.user?.name || "User"}
-                        width={32} height={32} unoptimized
-                        className="w-8 h-8 rounded-full object-cover"
-                    />
+                <Link href={`/profile/${comment.user?.username}`} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+                    <div className="w-6 h-6 rounded-full overflow-hidden bg-zinc-800 border border-white/10 relative">
+                        <Image
+                            src={comment.user?.avatar || fallbackAvatar(comment.user?.username || "commenter")}
+                            alt={comment.user?.name || "User"}
+                            fill
+                            unoptimized
+                            className="object-cover"
+                        />
+                    </div>
                     <div>
-                        <span className="font-bold text-sm text-slate-200">{comment.user?.name}</span>
-                        <span className="text-xs text-slate-500 ml-2">@{comment.user?.username} · {formatDistanceToNow(new Date(comment.createdAt))} ago</span>
+                        <span className="font-medium text-xs text-zinc-200">{comment.user?.name}</span>
+                        <span className="text-[11px] text-zinc-500 ml-2">@{comment.user?.username} · {formatDistanceToNow(new Date(comment.createdAt))} ago</span>
                     </div>
                 </Link>
-                <button type="button" className="text-slate-600 hover:text-white"><MoreHorizontal className="w-4 h-4" /></button>
+                <button type="button" className="text-zinc-600 hover:text-zinc-300"><MoreHorizontal className="w-3.5 h-3.5" /></button>
             </div>
 
-            <p className="text-slate-400 text-sm leading-relaxed pl-11">{comment.content}</p>
+            <p className="text-zinc-300 text-xs leading-relaxed pl-8">{comment.content}</p>
 
-            <div className="flex items-center gap-4 pl-11 pt-1">
-                <button onClick={handleLike} disabled={liking} className={`flex items-center gap-1.5 text-xs font-semibold ${isLiked ? 'text-rose-500' : 'text-slate-500 hover:text-rose-400'} transition-colors`}>
-                    <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-rose-500' : ''}`} /> {likes > 0 && likes}
+            <div className="flex items-center gap-4 pl-8 pt-0.5">
+                <button onClick={handleLike} disabled={liking} className={`flex items-center gap-1.5 text-xs transition-colors ${isLiked ? 'text-white font-medium' : 'text-zinc-500 hover:text-zinc-200'}`}>
+                    <Heart className={`w-3 h-3 ${isLiked ? 'fill-white text-white' : ''}`} /> {likes > 0 && <span className="tabular-nums">{likes}</span>}
                 </button>
-                <button onClick={() => setIsReplying(!isReplying)} className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-white transition-colors">
-                    <MessageCircle className="w-3.5 h-3.5" /> Reply
+                <button onClick={() => setIsReplying(!isReplying)} className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-200 transition-colors">
+                    <MessageCircle className="w-3 h-3" /> Reply
                 </button>
             </div>
 
             {isReplying && (
-                <form onSubmit={handleReplySubmit} className="ml-11 mt-3 flex items-center gap-3">
+                <form onSubmit={handleReplySubmit} className="ml-8 mt-2 flex items-center gap-2">
                     <input
                         type="text"
                         value={replyText}
@@ -428,10 +433,10 @@ const CommentItem = React.memo(function CommentItem({ comment, postId, currentUs
                         placeholder={`Replying to @${comment.user?.username}...`}
                         disabled={submitting}
                         autoFocus
-                        className="flex-1 bg-white/5 border border-white/10 rounded-lg py-2 px-3 text-white text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-lg py-1.5 px-2.5 text-white text-xs outline-none focus:border-white/30"
                     />
-                    <button type="submit" disabled={!replyText.trim() || submitting} className="text-primary hover:text-white transition-colors p-1 disabled:opacity-50">
-                        {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    <button type="submit" disabled={!replyText.trim() || submitting} className="btn-primary !text-xs !py-1 !px-2.5 disabled:opacity-40">
+                        {submitting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
                     </button>
                 </form>
             )}

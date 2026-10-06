@@ -32,34 +32,41 @@ export default function TrendingSidebar() {
     }, []);
 
     return (
-        <div className="glass-panel p-6 rounded-2xl border border-white/5 space-y-4 sticky top-28">
-            <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="w-5 h-5 text-primary" />
-                <h2 className="font-bold text-slate-100">Trending Now</h2>
+        <div className="bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08] rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2">
+                <TrendingUp className="w-3.5 h-3.5 text-zinc-400" />
+                <h3 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Trending</h3>
             </div>
 
             {loading ? (
-                <div className="flex items-center justify-center py-6">
-                    <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-4 h-4 text-zinc-500 animate-spin" />
                 </div>
             ) : trends.length > 0 ? (
-                trends.map((item) => (
-                    <div
-                        key={item.id}
-                        className="group cursor-pointer"
-                        onClick={() => router.push(`/search?q=${encodeURIComponent("#" + item.tag)}`)}
-                    >
-                        <p className="text-sm font-bold text-slate-200 group-hover:text-primary transition-colors flex items-center gap-1">
-                            <Hash className="w-3.5 h-3.5" />{item.tag}
-                        </p>
-                        <span className="text-xs text-slate-500">{item.postsCount} interactions</span>
-                    </div>
-                ))
+                <div className="space-y-2.5">
+                    {trends.map((item) => (
+                        <div
+                            key={item.id}
+                            className="group cursor-pointer py-1"
+                            onClick={() => router.push(`/search?q=${encodeURIComponent("#" + item.tag)}`)}
+                        >
+                            <p className="text-xs font-medium text-zinc-200 group-hover:text-white transition-colors flex items-center gap-1">
+                                <Hash className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300" />
+                                <span>{item.tag}</span>
+                            </p>
+                            <span className="text-[11px] text-zinc-500">{item.postsCount} interactions</span>
+                        </div>
+                    ))}
+                </div>
             ) : (
-                <p className="text-xs text-slate-500">Nothing trending yet</p>
+                <p className="text-xs text-zinc-500 py-1">Nothing trending yet</p>
             )}
 
-            <Link href="/explore" className="block w-full text-xs font-bold text-primary text-left hover:underline">Show more</Link>
+            <div className="pt-1 border-t border-white/[0.06]">
+                <Link href="/explore" className="text-xs text-zinc-400 hover:text-white transition-colors block">
+                    Explore all &rarr;
+                </Link>
+            </div>
         </div>
     );
 }

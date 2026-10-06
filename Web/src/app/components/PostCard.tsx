@@ -25,7 +25,22 @@ interface PostCardProps {
     onDelete?: (id: string) => void;
 }
 
-const PostCard = React.memo(function PostCard({ id, author, avatar, content, image, media = [], likes: initialLikes, comments, timestamp, initialIsLiked = false, initialIsSaved = false, isOwnPost = false, tags = [], onDelete }: PostCardProps) {
+const PostCard = React.memo(function PostCard({
+    id,
+    author,
+    avatar,
+    content,
+    image,
+    media = [],
+    likes: initialLikes,
+    comments,
+    timestamp,
+    initialIsLiked = false,
+    initialIsSaved = false,
+    isOwnPost = false,
+    tags = [],
+    onDelete
+}: PostCardProps) {
     const router = useRouter();
     const { toast } = useToast();
     const { confirm } = useConfirm();
@@ -78,38 +93,44 @@ const PostCard = React.memo(function PostCard({ id, author, avatar, content, ima
             if (res.data.success && navigator.share) {
                 await navigator.share({
                     title: `Check out this post by ${author}`,
-                    text: content.substring(0, 100),
-                    url: res.data.data.shareUrl
+                    url: res.data.data.shareUrl || window.location.href,
                 });
             } else if (res.data.success) {
-                await navigator.clipboard.writeText(res.data.data.shareUrl);
-                toast("Link copied to clipboard!", "success");
+                await navigator.clipboard.writeText(res.data.data.shareUrl || `${window.location.origin}/post/${id}`);
+                toast("Link copied to clipboard", "success");
             }
         } catch (err) {
-            console.error("Failed to share", err);
+            toast("Failed to share", "error");
         }
     };
 
     const handleSavePost = async (e: React.MouseEvent) => {
         e.stopPropagation();
-        setShowMenu(false);
-        setIsSaved(!isSaved);
         try {
-            await apiClient.post("/interactions/save", { postId: id });
+            const res = await apiClient.post("/interactions/save", { postId: id });
+            if (res.data.success) {
+                setIsSaved(res.data.data.isSaved);
+                toast(res.data.data.isSaved ? "Saved to bookmarks" : "Removed from bookmarks", "info");
+            }
         } catch (err) {
-            setIsSaved(isSaved); // Revert on failure
-            console.error("Failed to save post", err);
+            toast("Failed to update bookmark", "error");
+        } finally {
+            setShowMenu(false);
         }
     };
 
     const handleHidePost = async (e: React.MouseEvent) => {
         e.stopPropagation();
-        setShowMenu(false);
-        setHidden(true);
         try {
-            await apiClient.post("/interactions/hide", { postId: id });
+            const res = await apiClient.post("/interactions/hide", { postId: id });
+            if (res.data.success) {
+                setHidden(true);
+                toast("Post hidden from feed", "info");
+            }
         } catch (err) {
-            console.error("Failed to hide post", err);
+            toast("Failed to hide post", "error");
+        } finally {
+            setShowMenu(false);
         }
     };
 
@@ -117,25 +138,25 @@ const PostCard = React.memo(function PostCard({ id, author, avatar, content, ima
         e.stopPropagation();
         setShowMenu(false);
 
-        const confirmed = await confirm({
-            title: "Delete Post?",
+        const ok = await confirm({
+            title: "Delete post?",
             message: "Are you sure you want to delete this post? This action cannot be undone.",
             confirmText: "Delete",
+            cancelText: "Cancel",
             type: "danger"
         });
 
-        if (confirmed) {
+        if (ok) {
             try {
                 const res = await apiClient.delete(`/blogs/${id}`);
                 if (res.data.success && onDelete) {
                     onDelete(id);
                     toast("Post deleted successfully", "success");
                 } else {
-                    setHidden(true); // Hide it locally
+                    setHidden(true);
                     toast("Post removed from view", "info");
                 }
             } catch (err) {
-                console.error("Failed to delete post", err);
                 toast("Failed to delete post", "error");
             }
         }
@@ -147,13 +168,19 @@ const PostCard = React.memo(function PostCard({ id, author, avatar, content, ima
         router.push(`/post/${id}/edit`);
     };
 
-    // Helper to render links in content
     const renderContentWithLinks = (text: string) => {
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         return text.split(urlRegex).map((part, i) => {
             if (part.match(urlRegex)) {
                 return (
-                    <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-secondary hover:underline" onClick={(e) => e.stopPropagation()}>
+                    <a
+                        key={i}
+                        href={part}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-zinc-300 underline underline-offset-2 hover:text-white"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         {part}
                     </a>
                 );
@@ -165,56 +192,70 @@ const PostCard = React.memo(function PostCard({ id, author, avatar, content, ima
     if (hidden) return null;
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+        <article
             onClick={() => router.push(`/post/${id}`)}
-            className="glass-panel p-6 space-y-4 hover:border-white/20 transition-all cursor-pointer group/card relative"
+            className="bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08] hover:border-white/[0.16] rounded-xl p-5 space-y-3 transition-all cursor-pointer relative"
         >
             {/* Header */}
             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/40 to-secondary/40 border border-white/10 overflow-hidden relative">
+                <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-zinc-800 border border-white/10 overflow-hidden relative flex-shrink-0">
                         {avatar && <Image src={avatar} alt={author} fill unoptimized className="object-cover" />}
                     </div>
                     <div>
-                        <h4 className="font-bold text-sm text-white">{author}</h4>
-                        <p className="text-xs text-slate-500">{timestamp}</p>
+                        <h4 className="font-medium text-xs text-white leading-tight">{author}</h4>
+                        <p className="text-[11px] text-zinc-500">{timestamp}</p>
                     </div>
                 </div>
 
-                {/* Dropdown Menu Container */}
+                {/* Dropdown Menu */}
                 <div className="relative" ref={menuRef}>
                     <button
                         onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-                        className="text-slate-500 hover:text-white p-2 rounded-full hover:bg-white/5 transition-all outline-none"
+                        className="text-zinc-500 hover:text-zinc-200 p-1.5 rounded-md hover:bg-white/[0.06] transition-colors"
+                        title="Options"
                     >
-                        <MoreHorizontal className="w-5 h-5" />
+                        <MoreHorizontal className="w-4 h-4" />
                     </button>
 
                     <AnimatePresence>
                         {showMenu && (
                             <motion.div
-                                initial={{ opacity: 0, scale: 0.95, top: 10 }}
-                                animate={{ opacity: 1, scale: 1, top: 35 }}
-                                exit={{ opacity: 0, scale: 0.95, top: 10 }}
-                                className="absolute right-0 w-48 py-2 bg-[#1A1A2E] border border-white/10 rounded-xl shadow-2xl z-20 flex flex-col overflow-hidden"
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                className="absolute right-0 top-8 w-44 py-1.5 bg-[#18181b] border border-white/[0.1] rounded-lg shadow-2xl z-20 flex flex-col overflow-hidden text-xs"
                             >
-                                <button onClick={handleSavePost} className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white transition-colors text-left">
-                                    <Bookmark className="w-4 h-4" /> {isSaved ? "Saved" : "Save Post"}
+                                <button
+                                    onClick={handleSavePost}
+                                    className="flex items-center gap-2.5 px-3 py-1.5 text-zinc-300 hover:bg-white/[0.06] hover:text-white transition-colors text-left"
+                                >
+                                    <Bookmark className="w-3.5 h-3.5" />
+                                    <span>{isSaved ? "Saved" : "Bookmark"}</span>
                                 </button>
-                                <button onClick={handleHidePost} className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white transition-colors text-left">
-                                    <EyeOff className="w-4 h-4" /> Not Interested
+                                <button
+                                    onClick={handleHidePost}
+                                    className="flex items-center gap-2.5 px-3 py-1.5 text-zinc-300 hover:bg-white/[0.06] hover:text-white transition-colors text-left"
+                                >
+                                    <EyeOff className="w-3.5 h-3.5" />
+                                    <span>Not Interested</span>
                                 </button>
                                 {isOwnPost && (
                                     <>
-                                        <div className="h-px bg-white/5 my-1 mx-2" />
-                                        <button onClick={handleEdit} className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white transition-colors text-left">
-                                            <Edit3 className="w-4 h-4" /> Edit Post
+                                        <div className="h-px bg-white/[0.08] my-1" />
+                                        <button
+                                            onClick={handleEdit}
+                                            className="flex items-center gap-2.5 px-3 py-1.5 text-zinc-300 hover:bg-white/[0.06] hover:text-white transition-colors text-left"
+                                        >
+                                            <Edit3 className="w-3.5 h-3.5" />
+                                            <span>Edit</span>
                                         </button>
-                                        <button onClick={handleDelete} className="flex items-center gap-3 px-4 py-2 text-sm text-rose-500 hover:bg-white/5 hover:text-rose-400 transition-colors text-left">
-                                            <Trash2 className="w-4 h-4" /> Delete
+                                        <button
+                                            onClick={handleDelete}
+                                            className="flex items-center gap-2.5 px-3 py-1.5 text-rose-400 hover:bg-rose-500/10 transition-colors text-left"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <span>Delete</span>
                                         </button>
                                     </>
                                 )}
@@ -225,22 +266,29 @@ const PostCard = React.memo(function PostCard({ id, author, avatar, content, ima
             </div>
 
             {/* Content & Media */}
-            <div className="space-y-3">
-                <p className="text-slate-300 leading-relaxed text-sm whitespace-pre-wrap">
+            <div className="space-y-2.5">
+                <p className="text-zinc-200 text-xs leading-relaxed whitespace-pre-wrap font-normal">
                     {renderContentWithLinks(content)}
                 </p>
 
-                {/* Unified Media Support */}
-                {(media && media.length > 0) ? (
-                    <div className="space-y-2 mt-2">
+                {/* Media Render */}
+                {media && media.length > 0 ? (
+                    <div className="space-y-2 pt-1">
                         {media.map((item, idx) => (
-                            <div key={idx} className="rounded-2xl overflow-hidden border border-white/5 bg-slate-900/50 relative">
+                            <div key={idx} className="rounded-lg overflow-hidden border border-white/[0.06] bg-zinc-950/50 relative">
                                 {item.type === "image" ? (
-                                    <Image src={item.url} alt="Post content" width={800} height={450} unoptimized className="w-full h-auto object-cover max-h-[450px]" />
+                                    <Image
+                                        src={item.url}
+                                        alt="Post content"
+                                        width={800}
+                                        height={450}
+                                        unoptimized
+                                        className="w-full h-auto object-cover max-h-[420px]"
+                                    />
                                 ) : item.type === "video" ? (
-                                    <video src={item.url} controls className="w-full h-auto max-h-[450px]" onClick={(e) => e.stopPropagation()} />
+                                    <video src={item.url} controls className="w-full h-auto max-h-[420px]" onClick={(e) => e.stopPropagation()} />
                                 ) : item.type === "audio" ? (
-                                    <div className="p-4" onClick={(e) => e.stopPropagation()}>
+                                    <div className="p-3" onClick={(e) => e.stopPropagation()}>
                                         <audio src={item.url} controls className="w-full" />
                                     </div>
                                 ) : (
@@ -249,14 +297,14 @@ const PostCard = React.memo(function PostCard({ id, author, avatar, content, ima
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         onClick={(e) => e.stopPropagation()}
-                                        className="flex items-center gap-3 p-4 hover:bg-white/5 transition-colors group/file"
+                                        className="flex items-center gap-3 p-3 hover:bg-white/[0.04] transition-colors"
                                     >
-                                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover/file:bg-primary group-hover/file:text-white transition-all">
-                                            <Share2 className="w-5 h-5" />
+                                        <div className="w-8 h-8 rounded bg-white/[0.06] flex items-center justify-center text-zinc-300">
+                                            <Share2 className="w-4 h-4" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold text-white truncate">Document Attachment</p>
-                                            <p className="text-xs text-slate-500">Click to view/download</p>
+                                            <p className="text-xs font-medium text-white truncate">Document</p>
+                                            <p className="text-[10px] text-zinc-500">Click to view</p>
                                         </div>
                                     </a>
                                 )}
@@ -264,14 +312,14 @@ const PostCard = React.memo(function PostCard({ id, author, avatar, content, ima
                         ))}
                     </div>
                 ) : image && (
-                    <div className="rounded-2xl overflow-hidden border border-white/5 mt-2 relative">
+                    <div className="rounded-lg overflow-hidden border border-white/[0.06] pt-1 relative">
                         <Image src={image} alt="Post content" width={800} height={400} unoptimized className="w-full h-auto object-cover max-h-[400px]" />
                     </div>
                 )}
 
-                {/* Tags Section */}
+                {/* Tags */}
                 {tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-1">
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
                         {tags.map((tag, i) => (
                             <span
                                 key={i}
@@ -279,7 +327,7 @@ const PostCard = React.memo(function PostCard({ id, author, avatar, content, ima
                                     e.stopPropagation();
                                     router.push(`/search?q=${tag}&type=posts`);
                                 }}
-                                className="text-[10px] font-bold uppercase tracking-wider text-secondary bg-secondary/10 px-2 py-0.5 rounded-md hover:bg-secondary/20 transition-colors"
+                                className="text-[10px] font-medium text-zinc-400 bg-white/[0.04] hover:bg-white/[0.08] hover:text-zinc-200 border border-white/[0.06] px-2 py-0.5 rounded transition-colors"
                             >
                                 #{tag}
                             </span>
@@ -288,40 +336,61 @@ const PostCard = React.memo(function PostCard({ id, author, avatar, content, ima
                 )}
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-6 pt-2 border-t border-white/5">
+            {/* Actions Bar */}
+            <div className="flex items-center gap-5 pt-2 border-t border-white/[0.06]">
                 <ActionButton
-                    icon={<Heart className={`w-4 h-4 ${isLiked ? "fill-rose-500 text-rose-500" : ""}`} />}
+                    icon={<Heart className={`w-3.5 h-3.5 ${isLiked ? "fill-white text-white" : ""}`} />}
                     count={likes}
-                    color={isLiked ? "text-rose-500" : "hover:text-rose-500"}
+                    active={isLiked}
                     onClick={handleLike}
                     disabled={liking}
                 />
                 <ActionButton
-                    icon={<MessageCircle className="w-4 h-4" />}
+                    icon={<MessageCircle className="w-3.5 h-3.5" />}
                     count={comments}
-                    color="hover:text-primary"
                     onClick={(e) => { e.stopPropagation(); router.push(`/post/${id}`); }}
                 />
                 <ActionButton
-                    icon={<Share2 className="w-4 h-4" />}
+                    icon={<Share2 className="w-3.5 h-3.5" />}
                     onClick={handleShare}
-                    color="hover:text-accent"
                 />
+                <div className="ml-auto">
+                    <ActionButton
+                        icon={<Bookmark className={`w-3.5 h-3.5 ${isSaved ? "fill-white text-white" : ""}`} />}
+                        active={isSaved}
+                        onClick={handleSavePost}
+                    />
+                </div>
             </div>
-        </motion.div>
+        </article>
     );
 });
 
-const ActionButton = React.memo(function ActionButton({ icon, count, color, onClick, disabled }: { icon: React.ReactNode; count?: number; color?: string; onClick?: (e: React.MouseEvent) => void; disabled?: boolean }) {
+const ActionButton = React.memo(function ActionButton({
+    icon,
+    count,
+    active = false,
+    onClick,
+    disabled
+}: {
+    icon: React.ReactNode;
+    count?: number;
+    active?: boolean;
+    onClick?: (e: React.MouseEvent) => void;
+    disabled?: boolean;
+}) {
     return (
         <button
             onClick={onClick}
             disabled={disabled}
-            className={`flex items-center gap-2 text-slate-500 transition-all ${color} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+            className={`flex items-center gap-1.5 text-xs transition-colors py-1 ${
+                active
+                    ? "text-white font-medium"
+                    : "text-zinc-500 hover:text-zinc-200"
+            } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
         >
             {icon}
-            {count !== undefined && <span className="text-xs font-medium">{count}</span>}
+            {count !== undefined && <span className="text-[11px] tabular-nums">{count}</span>}
         </button>
     );
 });

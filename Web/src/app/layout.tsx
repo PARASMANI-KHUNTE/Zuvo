@@ -23,7 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${outfit.variable} font-sans antialiased pt-24 pb-12`}>
+      <body className={`${inter.variable} ${outfit.variable} font-sans antialiased min-h-screen bg-[#09090b] text-[#fafafa] selection:bg-white/20 selection:text-white`}>
         <ToastProvider>
           <AuthProvider>
             <ConfirmationProvider>

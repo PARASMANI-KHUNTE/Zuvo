@@ -31,46 +31,53 @@ export default function SuggestedUsers() {
     }, []);
 
     return (
-        <div className="glass-panel p-6 rounded-2xl border border-white/5 space-y-4 sticky top-[420px]">
-            <div className="flex items-center gap-2 mb-2">
-                <UsersIcon className="w-5 h-5 text-primary" />
-                <h2 className="font-bold text-slate-100">Who to follow</h2>
+        <div className="bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08] rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2">
+                <UsersIcon className="w-3.5 h-3.5 text-zinc-400" />
+                <h3 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Suggested</h3>
             </div>
 
             {loading ? (
-                <div className="flex items-center justify-center py-6">
-                    <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-4 h-4 text-zinc-500 animate-spin" />
                 </div>
             ) : users.length > 0 ? (
-                users.map((user) => (
-                    <div key={user.id} className="flex items-center justify-between group">
-                        <Link href={`/profile/${user.username}`} className="flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-8 rounded-full border border-white/10 overflow-hidden relative">
-                                <Image src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} fill unoptimized className="object-cover" alt={user.name} />
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                                <span className="text-xs font-bold text-slate-200 truncate">{user.name}</span>
-                                <span className="text-[10px] text-slate-500">@{user.username}</span>
-                            </div>
-                        </Link>
-                        <button
-                            onClick={async () => {
-                                try {
-                                    await apiClient.post("/interactions/follow", { userId: user.id || user._id });
-                                    // Optionally remove from list or update state
-                                    setUsers(users.filter(u => (u.id || u._id) !== (user.id || user._id)));
-                                } catch (err) {
-                                    console.error("Follow failed", err);
-                                }
-                            }}
-                            className="text-[10px] font-bold text-primary hover:text-white px-3 py-1.5 rounded-full border border-primary/30 hover:bg-primary/20 transition-all"
-                        >
-                            Follow
-                        </button>
-                    </div>
-                ))
+                <div className="space-y-3">
+                    {users.map((user) => (
+                        <div key={user.id} className="flex items-center justify-between gap-2 group">
+                            <Link href={`/profile/${user.username}`} className="flex items-center gap-2.5 min-w-0 flex-1">
+                                <div className="w-7 h-7 rounded-full bg-zinc-800 border border-white/10 overflow-hidden relative flex-shrink-0">
+                                    <Image
+                                        src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
+                                        fill
+                                        unoptimized
+                                        className="object-cover"
+                                        alt={user.name}
+                                    />
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                    <span className="text-xs font-medium text-zinc-200 group-hover:text-white truncate transition-colors">{user.name}</span>
+                                    <span className="text-[11px] text-zinc-500 truncate">@{user.username}</span>
+                                </div>
+                            </Link>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await apiClient.post("/interactions/follow", { userId: user.id || user._id });
+                                        setUsers(users.filter(u => (u.id || u._id) !== (user.id || user._id)));
+                                    } catch (err) {
+                                        console.error("Follow failed", err);
+                                    }
+                                }}
+                                className="text-[11px] font-medium bg-white text-zinc-950 hover:bg-zinc-200 px-2.5 py-1 rounded-full transition-colors flex-shrink-0"
+                            >
+                                Follow
+                            </button>
+                        </div>
+                    ))}
+                </div>
             ) : (
-                <p className="text-xs text-slate-500">No suggestions yet</p>
+                <p className="text-xs text-zinc-500 py-1">No suggestions available</p>
             )}
         </div>
     );

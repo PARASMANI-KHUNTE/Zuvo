@@ -1,4 +1,4 @@
-const { asyncHandler, logger } = require("@zuvo/shared");
+const { asyncHandler, logger, MessageBus } = require("@zuvo/shared");
 const { cloudinary } = require("../configs/cloudinary");
 
 const isMediaOwner = (req, publicId) => {
@@ -23,12 +23,77 @@ exports.uploadFile = asyncHandler(async (req, res, next) => {
 
     logger.info(`File uploaded successfully: ${req.file.path} (Request ID: ${req.requestId})`);
 
+    // Offload derivative generation (compressed variants) to the background worker
+    const resourceType = req.file.mimetype.startsWith("video")
+        ? "video"
+        : req.file.mimetype.startsWith("image") ? "image" : "raw";
+
+    if (resourceType !== "raw") {
+        try {
+            await MessageBus.publish("zuvo_tasks", {
+                type: "MEDIA_COMPRESSION",
+                publicId: req.file.filename,
+                resourceType,
+                userId: (req.user?.id || req.user?._id || "").toString()
+            });
+        } catch (err) {
+            logger.error(`Failed to enqueue media compression for ${req.file.filename}: ${err.message}`);
+        }
+    }
+
     res.status(200).json({
         success: true,
         data: {
             url: req.file.path,
             publicId: req.file.filename,
-            resourceType: req.file.mimetype.startsWith("video") ? "video" : "image"
+            resourceType
+        }
+    });
+});
+
+/**
+ * @desc    Generate compressed derivatives of an already uploaded asset (internal)
+ * @route   POST /api/v1/media/internal/compress
+ * @access  Internal (ownership enforced via the uploader id embedded in publicId)
+ */
+exports.compressMedia = asyncHandler(async (req, res, next) => {
+    const { publicId, resourceType, userId } = req.body;
+
+    if (!publicId) {
+        return res.status(400).json({ success: false, message: "publicId is required" });
+    }
+
+    const isVideo = resourceType === "video";
+    if (!isVideo && resourceType !== "image") {
+        return res.status(400).json({ success: false, message: "Only image or video assets can be compressed" });
+    }
+
+    // publicId is generated as `usr_{userId}__{timestamp}_{rand}` (see cloudinary storage)
+    if (userId) {
+        const lastSegment = publicId.split("/").pop();
+        if (!lastSegment.startsWith(`usr_${userId}__`)) {
+            return res.status(403).json({ success: false, message: "Not authorized to compress this file" });
+        }
+    }
+
+    const eager = isVideo
+        ? [{ format: "mp4", quality: "auto", width: 1280, crop: "limit" }]
+        : [{ fetch_format: "auto", quality: "auto" }];
+
+    const result = await cloudinary.uploader.explicit(publicId, {
+        type: "upload",
+        resource_type: isVideo ? "video" : "image",
+        eager,
+        eager_async: true
+    });
+
+    logger.info(`Compression scheduled for ${publicId}`, { requestId: req.requestId });
+
+    res.status(200).json({
+        success: true,
+        data: {
+            publicId,
+            eager: result.eager || []
         }
     });
 });

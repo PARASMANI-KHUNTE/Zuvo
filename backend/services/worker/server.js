@@ -1,4 +1,4 @@
-const dotenv = require("dotenv");
+﻿const dotenv = require("dotenv");
 dotenv.config();
 const express = require("express");
 const { trace, context, propagation } = require("@opentelemetry/api");
@@ -14,6 +14,7 @@ const tracer = trace.getTracer("worker-service");
 const STREAM_NAME = "zuvo_tasks";
 const GROUP_NAME = "worker_group";
 const CONSUMER_NAME = `worker_${process.pid}`;
+const SEARCH_CACHE_VERSION_KEY = "search:cache:version";
 
 /**
  * Worker logic to process messages from the MessageBus.
@@ -137,6 +138,18 @@ const processNotification = async (payload) => {
     const normalizedType = (type || "system").toLowerCase();
     const finalType = validTypes.includes(normalizedType) ? normalizedType : "system";
 
+    // Respect the recipient's in-app notification preference (default: enabled)
+    try {
+        const User = models.User();
+        const recipient = await User.findById(userId).select("notificationPreferences").lean();
+        if (recipient?.notificationPreferences?.in_app === false) {
+            logger.info(`Skipping ${finalType} notification for ${userId}: in-app notifications disabled`);
+            return;
+        }
+    } catch (prefErr) {
+        logger.warn(`Could not load notification preferences for ${userId}: ${prefErr.message}`);
+    }
+
     logger.info(`Processing ${finalType} notification for user ${userId}`);
 
     try {
@@ -191,15 +204,237 @@ const processNotification = async (payload) => {
     }
 };
 
+// ---------------------------------------------------------------------------
+// Personalized feed fan-out
+// ---------------------------------------------------------------------------
+const FEED_MAX_ITEMS = 200;
+const FEED_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
+const FANOUT_CHUNK_SIZE = 250;
+const BACKFILL_POST_LIMIT = 20;
+
+const feedKey = (userId) => `user:${userId}:feed`;
+
+const buildFeedItem = (post, author) => ({
+    _id: post._id,
+    title: post.title,
+    slug: post.slug,
+    content: post.content,
+    tags: post.tags,
+    media: post.media,
+    author,
+    likesCount: post.likesCount || 0,
+    commentsCount: post.commentsCount || 0,
+    createdAt: post.createdAt
+});
+
+// Items must be provided newest-first. Writes with LPUSH (head = newest),
+// trims to FEED_MAX_ITEMS and refreshes the TTL.
+const writeFeedItems = async (userIds, items) => {
+    if (!userIds.length || !items.length) return;
+
+    const serializedOldestFirst = items.map(item => JSON.stringify(item)).reverse();
+
+    for (let i = 0; i < userIds.length; i += FANOUT_CHUNK_SIZE) {
+        const chunk = userIds.slice(i, i + FANOUT_CHUNK_SIZE);
+        await Promise.all(chunk.map(async (uid) => {
+            const key = feedKey(uid);
+            const multi = redisClient.multi();
+            for (const payload of serializedOldestFirst) {
+                multi.lPush(key, payload);
+            }
+            multi.lTrim(key, 0, FEED_MAX_ITEMS - 1);
+            multi.expire(key, FEED_TTL_SECONDS);
+            await multi.exec();
+        }));
+    }
+};
+
+const readFeed = async (userId) => {
+    const raw = await redisClient.lRange(feedKey(userId), 0, FEED_MAX_ITEMS - 1);
+    if (!raw || !raw.length) return [];
+    return raw
+        .map(item => {
+            try { return JSON.parse(item); } catch { return null; }
+        })
+        .filter(Boolean);
+};
+
+// Rewrites the whole list (head = newest). Used by merge/remove operations
+// where LPUSH ordering would scramble chronology.
+const rewriteFeed = async (userId, items) => {
+    const key = feedKey(userId);
+    const multi = redisClient.multi();
+    multi.del(key);
+    if (items.length) {
+        for (const item of items) {
+            multi.rPush(key, JSON.stringify(item));
+        }
+        multi.expire(key, FEED_TTL_SECONDS);
+    }
+    await multi.exec();
+};
+
+const mergeIntoFeed = async (userId, newItems) => {
+    const existing = await readFeed(userId);
+    const byId = new Map();
+    for (const item of [...existing, ...newItems]) {
+        const id = String(item._id);
+        if (id && !byId.has(id)) byId.set(id, item);
+    }
+    const merged = [...byId.values()]
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .slice(0, FEED_MAX_ITEMS);
+    await rewriteFeed(userId, merged);
+};
+
+// Push a single new post into the author's feed and every follower's feed.
+const fanOutPost = async (task) => {
+    const { postId, authorId } = task;
+    if (!postId || !authorId) {
+        throw new Error("FEED_FANOUT requires postId and authorId");
+    }
+
+    const Post = models.Post();
+    const Relationship = models.Relationship();
+
+    const post = await Post.findOne({ _id: postId, isDeleted: { $ne: true } }).lean();
+    if (!post) {
+        logger.warn(`FEED_FANOUT: post ${postId} missing or deleted. Skipping fan-out.`);
+        return;
+    }
+    if (post.status && post.status !== "published") {
+        logger.info(`FEED_FANOUT: post ${postId} is "${post.status}", not fanning out.`);
+        return;
+    }
+
+    const author = await internalServices.getUserProfile(authorId);
+    const item = buildFeedItem(post, author);
+
+    const followers = await Relationship
+        .find({ following: authorId, status: "following" })
+        .select("follower")
+        .lean();
+
+    const recipientIds = [...new Set([
+        authorId.toString(),
+        ...followers.map(rel => rel.follower.toString())
+    ])];
+
+    await writeFeedItems(recipientIds, [item]);
+    logger.info(`FEED_FANOUT: post ${postId} delivered to ${recipientIds.length} feed(s)`);
+};
+
+// Pull the most recent posts of a newly followed author into the follower's feed.
+const backfillFeed = async (followerId, authorId) => {
+    const Post = models.Post();
+    const posts = await Post.find({ author: authorId, status: "published", isDeleted: { $ne: true } })
+        .sort({ createdAt: -1 })
+        .limit(BACKFILL_POST_LIMIT)
+        .select("title slug author tags content media createdAt likesCount commentsCount status")
+        .lean();
+
+    if (!posts.length) return;
+
+    const author = await internalServices.getUserProfile(authorId);
+    const items = posts.map(post => buildFeedItem(post, author));
+    await mergeIntoFeed(followerId, items);
+    logger.info(`FEED_BACKFILL: added ${items.length} post(s) from ${authorId} to ${followerId}`);
+};
+
+// Drop an unfollowed author's posts from the follower's cached feed.
+const removeAuthorFromFeed = async (followerId, authorId) => {
+    const existing = await readFeed(followerId);
+    if (!existing.length) return;
+
+    const target = String(authorId);
+    const remaining = existing.filter(item => {
+        const itemAuthor = item.author?.id || item.author?._id || item.author;
+        return String(itemAuthor) !== target;
+    });
+
+    if (remaining.length !== existing.length) {
+        await rewriteFeed(followerId, remaining);
+        logger.info(`FEED_PRUNE: removed ${existing.length - remaining.length} post(s) by ${authorId} from ${followerId}`);
+    }
+};
+
+// ---------------------------------------------------------------------------
+// GDPR scrubbing — runs in-process in the worker (the single background runner)
+// ---------------------------------------------------------------------------
+const scrubUserData = async (userId) => {
+    if (!userId) throw new Error("GDPR scrub requires a userId");
+
+    const User = models.User();
+    const Post = models.Post();
+    const Message = models.Message();
+    const Relationship = models.Relationship();
+    const Comment = models.Comment();
+    const Notification = models.Notification();
+
+    logger.info(`GDPR: Scrubbing all data for user ${userId}`);
+
+    // Relationships first so we can correct counterparties' counters
+    const relationships = await Relationship
+        .find({ $or: [{ follower: userId }, { following: userId }] })
+        .select("follower following")
+        .lean();
+
+    const counterDeltas = new Map();
+    const bump = (id, field, delta) => {
+        const key = id.toString();
+        if (key === String(userId)) return;
+        const entry = counterDeltas.get(key) || {};
+        entry[field] = (entry[field] || 0) + delta;
+        counterDeltas.set(key, entry);
+    };
+    for (const rel of relationships) {
+        if (rel.follower.toString() === String(userId)) {
+            bump(rel.following, "followersCount", -1);
+        } else {
+            bump(rel.follower, "followingCount", -1);
+        }
+    }
+
+    await Promise.all([
+        User.findByIdAndUpdate(userId, {
+            name: "[DELETED USER]",
+            email: `deleted_${userId}@gdpr.zuvo.com`,
+            password: undefined,
+            googleId: undefined,
+            refreshTokens: [],
+            accountStatus: "deleted"
+        }),
+        Post.updateMany({ author: userId }, { isDeleted: true, title: "[DELETED]", content: "[DELETED BY USER REQUEST]" }),
+        Message.updateMany({ sender: userId }, { content: "[DELETED]" }),
+        Comment.updateMany({ user: userId }, { isDeleted: true, content: "[DELETED]" }),
+        Notification.deleteMany({ userId }),
+        Relationship.deleteMany({ $or: [{ follower: userId }, { following: userId }] }),
+        // Invalidate cached profile + personalized feed
+        redisClient.del(`user:profile:${userId}`),
+        redisClient.del(feedKey(userId))
+    ]);
+
+    if (counterDeltas.size) {
+        await Promise.all([...counterDeltas.entries()].map(([id, fields]) =>
+            User.findByIdAndUpdate(id, { $inc: fields })
+        ));
+    }
+
+    logger.info(`GDPR: Scrub complete for user ${userId}`);
+};
+
 const handleTask = async (task) => {
     switch (task.type) {
         case "MEDIA_COMPRESSION":
-            logger.info("Compressing media in background...");
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            logger.info(`Compressing media ${task.publicId || ""} in background...`);
+            if (!task.publicId) {
+                logger.warn("MEDIA_COMPRESSION task has no publicId. Skipping.");
+                break;
+            }
+            await internalServices.compressMedia(task.publicId, task.resourceType, task.userId);
             break;
         case "FEED_FANOUT":
-            logger.info("Fanning out post to follower feeds...");
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await fanOutPost(task);
             break;
         case "NOTIFICATION":
             await processNotification({
@@ -212,8 +447,11 @@ const handleTask = async (task) => {
             });
             break;
         case "SEARCH_INDEX":
-            logger.info(`Indexing post ${task.postId} for search...`);
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // The search service queries MongoDB directly; its results are cached
+            // in Redis under a versioned key. Bumping the version invalidates every
+            // cached query so the freshly created/updated post is immediately visible.
+            logger.info(`Refreshing search index for post ${task.postId}`);
+            await redisClient.incr(SEARCH_CACHE_VERSION_KEY);
             break;
         case "LIKE_TOGGLE":
             logger.info(`Syncing like for post ${task.postId}`);
@@ -254,11 +492,8 @@ const handleTask = async (task) => {
             }
             break;
         case "GDPR_DELETE_USER":
-            logger.info(`GDPR: Initiating scrubbing for user ${task.userId}`);
-            await MessageBus.publish("zuvo_tasks", {
-                type: "GDPR_USER_DELETE",
-                userId: task.userId
-            });
+        case "GDPR_USER_DELETE":
+            await scrubUserData(task.userId);
             break;
         case "SAVE_CHAT_MESSAGE":
             logger.info(`Persisting chat message for conversation ${task.conversationId}`);
@@ -306,6 +541,12 @@ const handleTask = async (task) => {
             } catch (err) {
                 logger.error("Failed to sync follow counts", err);
             }
+            // Backfill the new follower's feed with recent posts from this author
+            try {
+                await backfillFeed(task.followerId, task.followingId);
+            } catch (err) {
+                logger.error("Failed to backfill feed on follow", err);
+            }
             break;
         case "FOLLOW_REQUEST":
             logger.info(`Processing follow request: ${task.followerId} -> ${task.followingId}`);
@@ -337,6 +578,12 @@ const handleTask = async (task) => {
             } catch (err) {
                 logger.error("Failed to sync accepted follow counts", err);
             }
+            // Private account: backfill once the follow is accepted
+            try {
+                await backfillFeed(task.followerId, task.followingId);
+            } catch (err) {
+                logger.error("Failed to backfill feed on follow accept", err);
+            }
             break;
         case "UNFOLLOW":
             logger.info(`Syncing unfollow counts for ${task.followerId} -> ${task.followingId}`);
@@ -348,6 +595,11 @@ const handleTask = async (task) => {
                 ]);
             } catch (err) {
                 logger.error("Failed to sync unfollow counts", err);
+            }
+            try {
+                await removeAuthorFromFeed(task.followerId, task.followingId);
+            } catch (err) {
+                logger.error("Failed to prune feed on unfollow", err);
             }
             break;
         default:
@@ -366,154 +618,3 @@ const handleFailure = async (id, task, error) => {
 };
 
 startWorker().catch(err => logger.error("Fatal Worker Error", err));
-
-// GDPR Listener for Auth Service
-const startGDPRListener = async () => {
-    await MessageBus.createConsumerGroup("zuvo_tasks", "auth_gdpr_group");
-
-    while (true) {
-        try {
-            const results = await redisClient.xReadGroup(
-                "auth_gdpr_group",
-                "auth_worker",
-                { key: "zuvo_tasks", id: ">" },
-                { COUNT: 1, BLOCK: 5000 }
-            );
-
-            if (results) {
-                for (const stream of results) {
-                    for (const message of stream.messages) {
-                        const { id, message: data } = message;
-                        const task = JSON.parse(data.data);
-
-                        if (task.type === "GDPR_USER_DELETE") {
-                            const User = models.User();
-                            logger.info(`GDPR: Scrubbing Auth data for user ${task.userId}`);
-                            await User.findByIdAndUpdate(task.userId, {
-                                name: "[DELETED USER]",
-                                email: `deleted_${task.userId}@gdpr.zuvo.com`,
-                                password: undefined,
-                                googleId: undefined,
-                                refreshTokens: []
-                            });
-                        }
-                        await redisClient.xAck("zuvo_tasks", "auth_gdpr_group", id);
-                    }
-                }
-            }
-        } catch (err) {
-            logger.error("GDPR Listener Error (Auth)", err);
-            await new Promise(r => setTimeout(r, 5000));
-        }
-    }
-};
-
-if (process.env.SERVICE_NAME === "auth-service") {
-    startGDPRListener();
-}
-
-// GDPR Listener for Blog Service
-const startBlogGDPRListener = async () => {
-    await MessageBus.createConsumerGroup("zuvo_tasks", "blog_gdpr_group");
-    while (true) {
-        try {
-            const results = await redisClient.xReadGroup("blog_gdpr_group", "blog_worker", { key: "zuvo_tasks", id: ">" }, { COUNT: 1, BLOCK: 5000 });
-            if (results) {
-                for (const stream of results) {
-                    for (const message of stream.messages) {
-                        const { id, message: data } = message;
-                        const task = JSON.parse(data.data);
-                        if (task.type === "GDPR_USER_DELETE") {
-                            const Post = models.Post();
-                            logger.info(`GDPR: Scrubbing Blog data for user ${task.userId}`);
-                            await Post.updateMany({ author: task.userId }, { isDeleted: true, content: "[DELETED BY USER REQUEST]", title: "[DELETED]" });
-                        }
-                        await redisClient.xAck("zuvo_tasks", "blog_gdpr_group", id);
-                    }
-                }
-            }
-        } catch (err) { logger.error("GDPR Listener Error (Blog)", err); await new Promise(r => setTimeout(r, 5000)); }
-    }
-};
-
-// GDPR Listener for Chat Service
-const startChatGDPRListener = async () => {
-    await MessageBus.createConsumerGroup("zuvo_tasks", "chat_gdpr_group");
-    while (true) {
-        try {
-            const results = await redisClient.xReadGroup("chat_gdpr_group", "chat_worker", { key: "zuvo_tasks", id: ">" }, { COUNT: 1, BLOCK: 5000 });
-            if (results) {
-                for (const stream of results) {
-                    for (const message of stream.messages) {
-                        const { id, message: data } = message;
-                        const task = JSON.parse(data.data);
-                        if (task.type === "GDPR_USER_DELETE") {
-                            const Message = models.Message();
-                            logger.info(`GDPR: Scrubbing Chat data for user ${task.userId}`);
-                            await Message.updateMany({ sender: task.userId }, { content: "[DELETED]" });
-                        }
-                        await redisClient.xAck("zuvo_tasks", "chat_gdpr_group", id);
-                    }
-                }
-            }
-        } catch (err) { logger.error("GDPR Listener Error (Chat)", err); await new Promise(r => setTimeout(r, 5000)); }
-    }
-};
-
-if (process.env.SERVICE_NAME === "blog-service") startBlogGDPRListener();
-if (process.env.SERVICE_NAME === "chat-service") startChatGDPRListener();
-
-// GDPR Listener for Interactions Service
-const startInteractionsGDPRListener = async () => {
-    await MessageBus.createConsumerGroup("zuvo_tasks", "interactions_gdpr_group");
-    while (true) {
-        try {
-            const results = await redisClient.xReadGroup("interactions_gdpr_group", "interactions_worker", { key: "zuvo_tasks", id: ">" }, { COUNT: 1, BLOCK: 5000 });
-            if (results) {
-                for (const stream of results) {
-                    for (const message of stream.messages) {
-                        const { id, message: data } = message;
-                        const task = JSON.parse(data.data);
-                        if (task.type === "GDPR_USER_DELETE") {
-                            const Relationship = models.Relationship();
-                            const Comment = models.Comment();
-                            logger.info(`GDPR: Scrubbing Interactions data for user ${task.userId}`);
-                            await Promise.all([
-                                Relationship.deleteMany({ $or: [{ follower: task.userId }, { following: task.userId }] }),
-                                Comment.updateMany({ user: task.userId }, { content: "[DELETED]", isDeleted: true })
-                            ]);
-                        }
-                        await redisClient.xAck("zuvo_tasks", "interactions_gdpr_group", id);
-                    }
-                }
-            }
-        } catch (err) { logger.error("GDPR Listener Error (Interactions)", err); await new Promise(r => setTimeout(r, 5000)); }
-    }
-};
-
-// GDPR Listener for Realtime Service (Notifications)
-const startRealtimeGDPRListener = async () => {
-    await MessageBus.createConsumerGroup("zuvo_tasks", "realtime_gdpr_group");
-    while (true) {
-        try {
-            const results = await redisClient.xReadGroup("realtime_gdpr_group", "realtime_worker", { key: "zuvo_tasks", id: ">" }, { COUNT: 1, BLOCK: 5000 });
-            if (results) {
-                for (const stream of results) {
-                    for (const message of stream.messages) {
-                        const { id, message: data } = message;
-                        const task = JSON.parse(data.data);
-                        if (task.type === "GDPR_USER_DELETE") {
-                            const Notification = models.Notification();
-                            logger.info(`GDPR: Scrubbing Realtime data for user ${task.userId}`);
-                            await Notification.deleteMany({ userId: task.userId });
-                        }
-                        await redisClient.xAck("zuvo_tasks", "realtime_gdpr_group", id);
-                    }
-                }
-            }
-        } catch (err) { logger.error("GDPR Listener Error (Realtime)", err); await new Promise(r => setTimeout(r, 5000)); }
-    }
-};
-
-if (process.env.SERVICE_NAME === "interactions-service") startInteractionsGDPRListener();
-if (process.env.SERVICE_NAME === "realtime-service") startRealtimeGDPRListener();

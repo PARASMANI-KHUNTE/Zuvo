@@ -1,13 +1,14 @@
 # Zuvo Frontend Plan & Architecture 🎨
 
-This document outlines the detailed plan for the Zuvo Next.js frontend, including page structures, workflows, and technical strategies.
+This document outlines the detailed architecture and roadmap for the Zuvo Next.js frontend, crafted with a high-end **minimalist** aesthetic.
 
-## 🛠️ Tech Stack
+## 🛠️ Tech Stack & Design System
 - **Framework**: Next.js 14+ (App Router)
-- **Styling**: Vanilla CSS (Premium Custom Design System)
-- **State Management**: React Context (Auth) + Optimistic UI (Zustand or local state)
+- **Styling**: Minimalist Monochromatic Design System (Tailwind + Custom Tokens in `globals.css`)
+- **Aesthetic**: Deep Obsidian (`#09090b`), Razor-thin hairline borders (`rgba(255,255,255,0.08)`), High-contrast typography, and zero visual clutter.
+- **State Management**: React Context (Auth, Modals, Socket, Toast, Confirmation) + Optimistic UI
 - **Real-time**: Socket.io-client
-- **Data Fetching**: Axios / Fetch with interceptors for JWT rotation
+- **Data Fetching**: Axios with correlation tracing (`X-Request-ID`) and token rotation interceptors
 
 ---
 
@@ -84,8 +85,17 @@ This document outlines the detailed plan for the Zuvo Next.js frontend, includin
 
 ---
 
+## 📐 Responsive Layout Architecture
+- **Mobile (< 1024px)**: Single-column feed (`max-w-xl mx-auto`). Top compact header (`h-16`) + Bottom navigation bar with safe-area insets. Left and right sidebars hidden.
+- **Tablet / Small Laptop (1024px - 1279px)**: Two-column layout. Sticky left navigation sidebar (`w-56` or `w-60`) + Spacious central feed (`flex-1 max-w-2xl min-w-0`). Right sidebar hidden to avoid feed crampedness.
+- **Desktop (>= 1280px)**: Three-column layout. Sticky left sidebar (`w-60`), Central feed (`max-w-[640px]`), and Sticky right discovery sidebar (`w-72 xl:w-80`). All three columns centered seamlessly inside `max-w-7xl mx-auto` with zero horizontal overflow or widescreen void.
+- **Immersive Routes (`/shorts`)**: Dedicated full-height (`100dvh`) vertical reel player without navbar or sidebar interference.
+
+---
+
 ## ✨ Premium UI/UX Details
 - **Micro-interactions**: Hover effects on cards, pulse on like, smooth transitions between pages.
 - **Loading States**: Skeleton loaders tailored to content shapes.
 - **Responsiveness**: Mobile-first navigation (Bottom bar for mobile, Sidebar for desktop).
 - **Zero-Latency Feel**: Extensive use of server-side data fetching for initial load + client-side updates.
+

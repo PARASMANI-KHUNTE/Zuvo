@@ -9,6 +9,7 @@ Welcome to the official documentation for the Zuvo Microservices Ecosystem.
 - **[Backend Workflow](./BACKEND_WORKFLOW.md)**: Architecture, data flow, and backend logic deep-dive.
 - **[Product Specification](./PRODUCT_SPEC.md)**: Comprehensive guide to features, functions, and UX.
 - **[Frontend Plan](./FRONTEND_PLAN.md)**: Detailed Next.js architecture and page-by-page breakdown.
+- **[Deployment Guide](./DEPLOYMENT_GUIDE.md)**: Production deployment instructions for Frontend & Backend.
 - **[Progress Report](./PROGRESS_REPORT.md)**: Current status and summary of work completed so far.
 
 ## 🛠️ Infrastructure Overview

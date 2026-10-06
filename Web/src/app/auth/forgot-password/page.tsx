@@ -32,7 +32,7 @@ export default function ForgotPasswordPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="glass-panel max-w-md w-full p-10 space-y-8 relative overflow-hidden"
             >
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-secondary to-accent" />
+                <div className="absolute top-0 left-0 w-full h-px bg-white/20" />
 
                 <AnimatePresence mode="wait">
                     {!sent ? (

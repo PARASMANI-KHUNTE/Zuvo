@@ -45,7 +45,7 @@ export default function LoginScreen() {
             const backendToken = response.data.accessToken;
 
             if (backendToken) {
-                await login(backendToken);
+                await login(backendToken, response.data.user, response.data.refreshToken);
                 router.replace('/(tabs)' as Href);
             } else {
                 throw new Error("No token received from backend");

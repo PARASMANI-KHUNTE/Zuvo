@@ -17,7 +17,10 @@ function MessagesContent() {
     const searchParams = useSearchParams();
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [messageInput, setMessageInput] = useState("");
+    const [chatQuery, setChatQuery] = useState("");
+    const [uploadingImage, setUploadingImage] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
 
     const {
@@ -84,35 +87,76 @@ function MessagesContent() {
         return participants.find(p => (p?._id || p?.id) !== (user?.id || user?._id)) || participants[0];
     };
 
-    return (
-        <div className="flex h-[calc(100vh-80px)] w-full max-w-6xl mx-auto rounded-3xl overflow-hidden glass-panel border border-white/10 mt-4">
+    const filteredConversations = conversations.filter((chat) => {
+        const query = chatQuery.trim().toLowerCase();
+        if (!query) return true;
+        const other = getOtherParticipant(chat.participants);
+        const haystack = `${chat.isGroup ? chat.groupName || "" : other.name || ""} ${other.username || ""}`.toLowerCase();
+        return haystack.includes(query);
+    });
 
+    const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = "";
+        if (!file || !selectedId) return;
+
+        setUploadingImage(true);
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+            const res = await apiClient.post("/media/upload", formData, {
+                headers: { "Content-Type": "multipart/form-data" }
+            });
+            const uploaded = res.data.data;
+            sendMessage("", [{
+                url: uploaded.url,
+                publicId: uploaded.publicId,
+                fileType: uploaded.resourceType
+            }]);
+            toast("Image sent", "success");
+        } catch (err) {
+            console.error("Failed to upload image", err);
+            toast("Failed to upload image", "error");
+        } finally {
+            setUploadingImage(false);
+        }
+    };
+
+    const isImageAttachment = (attachment: any) =>
+        attachment.fileType === "image" ||
+        (typeof attachment.url === "string" && /\.(png|jpe?g|gif|webp|avif|svg)(\?.*)?$/i.test(attachment.url));
+
+    return (
+        <div className="flex h-[calc(100vh-6.5rem)] w-full rounded-xl overflow-hidden bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08]">
             {/* Left Sidebar (Conversations List) */}
-            <div className="w-80 border-r border-white/5 flex flex-col bg-[#0f172a]/40">
+            <div className={`w-full md:w-80 border-r border-white/[0.08] flex flex-col bg-[#111113]/50 ${selectedId ? "hidden md:flex" : "flex"}`}>
                 {/* Header */}
-                <div className="p-4 border-b border-white/5">
-                    <h2 className="text-xl font-bold text-white mb-4">Messages</h2>
+                <div className="p-3.5 border-b border-white/[0.08] space-y-3">
+                    <h2 className="text-base font-bold text-white tracking-tight">Messages</h2>
                     <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
                         <input
                             type="text"
                             placeholder="Search chats..."
-                            className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                            value={chatQuery}
+                            onChange={(e) => setChatQuery(e.target.value)}
+                            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg py-1.5 pl-9 pr-3 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-white/30"
                         />
                     </div>
                 </div>
 
                 {/* List */}
-                <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
-                    {conversations.length > 0 ? (
-                        conversations.map((chat) => {
+                <div className="flex-1 overflow-y-auto w-full custom-scrollbar divide-y divide-white/[0.04]">
+                    {filteredConversations.length > 0 ? (
+                        filteredConversations.map((chat) => {
                             const other = getOtherParticipant(chat.participants);
+                            const isSelected = selectedId === chat._id;
                             return (
                                 <div
                                     key={chat._id}
                                     role="button"
                                     tabIndex={0}
-                                    aria-pressed={selectedId === chat._id}
+                                    aria-pressed={isSelected}
                                     onClick={() => setSelectedId(chat._id)}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' || e.key === ' ') {
@@ -120,19 +164,23 @@ function MessagesContent() {
                                             setSelectedId(chat._id);
                                         }
                                     }}
-                                    className={`p-4 flex items-center gap-3 cursor-pointer transition-colors border-b border-white/5 w-full ${selectedId === chat._id ? 'bg-primary/10 border-l-2 border-l-primary' : 'hover:bg-white/5 border-l-2 border-l-transparent'
-                                        }`}
+                                    className={`p-3.5 flex items-center gap-3 cursor-pointer transition-colors w-full ${
+                                        isSelected
+                                            ? "bg-white/[0.08]"
+                                            : "hover:bg-white/[0.03]"
+                                    }`}
                                 >
                                     <div className="relative flex-shrink-0">
-                                        <Image src={other.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"} alt={other.name} width={48} height={48} unoptimized className="w-12 h-12 rounded-full object-cover border border-white/10" />
-                                        {/* Presence logic could be added here */}
+                                        <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 border border-white/10 relative">
+                                            <Image src={other.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"} alt={other.name} fill unoptimized className="object-cover" />
+                                        </div>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex justify-between items-baseline mb-1">
-                                            <h3 className="font-semibold text-slate-200 text-sm truncate">{chat.isGroup ? chat.groupName : other.name}</h3>
-                                            <span className="text-xs text-slate-500 flex-shrink-0">{isValid(new Date(chat.updatedAt)) ? format(new Date(chat.updatedAt), "h:mm a") : ""}</span>
+                                        <div className="flex justify-between items-baseline mb-0.5">
+                                            <h3 className="font-medium text-white text-xs truncate">{chat.isGroup ? chat.groupName : other.name}</h3>
+                                            <span className="text-[10px] text-zinc-500 flex-shrink-0">{isValid(new Date(chat.updatedAt)) ? format(new Date(chat.updatedAt), "h:mm a") : ""}</span>
                                         </div>
-                                        <div className="flex justify-between items-center text-xs text-slate-400 truncate">
+                                        <div className="text-[11px] text-zinc-400 truncate">
                                             {chat.lastMessage?.content || "No messages yet"}
                                         </div>
                                     </div>
@@ -140,39 +188,47 @@ function MessagesContent() {
                             );
                         })
                     ) : (
-                        <div className="p-8 text-center text-slate-500 text-sm">
-                            No conversations yet
+                        <div className="p-8 text-center text-zinc-500 text-xs">
+                            {conversations.length > 0 ? "No chats match your search" : "No conversations yet"}
                         </div>
                     )}
                 </div>
             </div>
 
             {/* Right Panel (Active Chat Window) */}
-            <div className="flex-1 flex flex-col bg-[#020617]/40 relative overflow-hidden">
-
+            <div className={`flex-1 flex-col bg-[#09090b]/50 relative overflow-hidden ${selectedId ? "flex" : "hidden md:flex"}`}>
                 {activeChat ? (
                     <>
                         {/* Chat Header */}
-                        <div className="p-4 border-b border-white/5 flex justify-between items-center bg-[#0f172a]/20 backdrop-blur-md absolute top-0 w-full z-10">
+                        <div className="p-3.5 border-b border-white/[0.08] flex justify-between items-center bg-[#111113]/80 backdrop-blur-md absolute top-0 w-full z-10">
                             <div className="flex items-center gap-3">
-                                <Image src={getOtherParticipant(activeChat.participants).avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"} className="w-10 h-10 rounded-full object-cover border border-white/10" alt="Avatar" width={40} height={40} unoptimized />
+                                <button
+                                    onClick={() => setSelectedId(null)}
+                                    className="md:hidden p-1 text-zinc-400 hover:text-white"
+                                    title="Back"
+                                >
+                                    &larr;
+                                </button>
+                                <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 border border-white/10 relative">
+                                    <Image src={getOtherParticipant(activeChat.participants).avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"} fill unoptimized className="object-cover" alt="Avatar" />
+                                </div>
                                 <div>
-                                    <h2 className="font-bold text-slate-100">{activeChat.isGroup ? activeChat.groupName : getOtherParticipant(activeChat.participants).name}</h2>
-                                    <p className="text-xs text-primary">{isTyping ? "typing..." : "Online"}</p>
+                                    <h2 className="font-semibold text-xs text-white">{activeChat.isGroup ? activeChat.groupName : getOtherParticipant(activeChat.participants).name}</h2>
+                                    <p className="text-[10px] text-zinc-400">{isTyping ? "typing..." : "Active"}</p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-4 text-slate-400">
-                                <Phone className="w-5 h-5 cursor-pointer hover:text-white transition-colors" onClick={() => toast("Voice call feature coming soon!", "info")} />
-                                <Video className="w-5 h-5 cursor-pointer hover:text-white transition-colors" onClick={() => toast("Video call feature coming soon!", "info")} />
-                                <MoreVertical className="w-5 h-5 cursor-pointer hover:text-white transition-colors" onClick={() => toast("Options menu coming soon!", "info")} />
+                            <div className="flex items-center gap-2 text-zinc-400">
+                                <Phone className="w-4 h-4 cursor-pointer hover:text-white transition-colors" onClick={() => toast("Voice call feature coming soon!", "info")} />
+                                <Video className="w-4 h-4 cursor-pointer hover:text-white transition-colors" onClick={() => toast("Video call feature coming soon!", "info")} />
+                                <MoreVertical className="w-4 h-4 cursor-pointer hover:text-white transition-colors" onClick={() => toast("Options menu coming soon!", "info")} />
                             </div>
                         </div>
 
                         {/* Messages Timeline */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-4 pt-24 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 pt-20 custom-scrollbar">
                             {loading && messages.length === 0 ? (
-                                <div className="flex justify-center py-4">
-                                    <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                                <div className="flex justify-center py-6">
+                                    <Loader2 className="w-5 h-5 text-zinc-500 animate-spin" />
                                 </div>
                             ) : (
                                 <>
@@ -182,19 +238,48 @@ function MessagesContent() {
                                         const timeStr = isValid(msgDate) ? format(msgDate, "h:mm a") : "";
                                         return (
                                             <div key={msg._id || idx} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                                                <div className={`max-w-[70%] ${isMe ? "order-2" : ""}`}>
+                                                <div className={`max-w-[75%] sm:max-w-[65%] ${isMe ? "order-2" : ""}`}>
                                                     <div
-                                                        className={`p-3 rounded-2xl text-sm leading-relaxed shadow-lg ${isMe
-                                                            ? "bg-primary text-white rounded-tr-sm"
-                                                            : "glass-panel bg-[#1e293b]/80 text-slate-200 rounded-tl-sm border-white/5"
+                                                        className={`p-3 rounded-xl text-xs leading-relaxed ${isMe
+                                                            ? "bg-white text-zinc-950 rounded-tr-sm"
+                                                            : "bg-white/[0.06] text-zinc-200 rounded-tl-sm border border-white/[0.08]"
                                                             } ${msg.status === 'sending' ? 'opacity-70' : ''}`}
                                                     >
+                                                        {msg.attachments && msg.attachments.length > 0 && (
+                                                            <div className="space-y-2 mb-1.5">
+                                                                {msg.attachments.map((attachment: any, attIdx: number) => (
+                                                                    isImageAttachment(attachment) ? (
+                                                                        <Image
+                                                                            key={attIdx}
+                                                                            src={attachment.url}
+                                                                            alt="Attachment"
+                                                                            width={240}
+                                                                            height={160}
+                                                                            unoptimized
+                                                                            className="rounded-lg object-cover w-full max-w-[240px] border border-white/10"
+                                                                        />
+                                                                    ) : attachment.fileType === "video" ? (
+                                                                        <video key={attIdx} src={attachment.url} controls className="rounded-lg w-full max-w-[240px]" />
+                                                                    ) : (
+                                                                        <a
+                                                                            key={attIdx}
+                                                                            href={attachment.url}
+                                                                            target="_blank"
+                                                                            rel="noreferrer"
+                                                                            className="underline break-all text-xs opacity-90"
+                                                                        >
+                                                                            {attachment.url}
+                                                                        </a>
+                                                                    )
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                         {msg.content}
                                                     </div>
-                                                    <div className={`text-[10px] text-slate-500 mt-1 flex items-center gap-1 ${isMe ? "justify-end" : "justify-start"}`}>
+                                                    <div className={`text-[10px] text-zinc-500 mt-1 flex items-center gap-1 ${isMe ? "justify-end" : "justify-start"}`}>
                                                         {timeStr}
-                                                        {isMe && msg.status === 'sending' && <Clock className="w-3 h-3 text-slate-400 ml-1" />}
-                                                        {isMe && msg.status !== 'sending' && <CheckCheck className="w-3 h-3 text-primary ml-1" />}
+                                                        {isMe && msg.status === 'sending' && <Clock className="w-3 h-3 text-zinc-500 ml-1" />}
+                                                        {isMe && msg.status !== 'sending' && <CheckCheck className="w-3 h-3 text-zinc-400 ml-1" />}
                                                     </div>
                                                 </div>
                                             </div>
@@ -206,46 +291,53 @@ function MessagesContent() {
                         </div>
 
                         {/* Input Area */}
-                        <div className="p-4 bg-[#0f172a]/40 border-t border-white/5 backdrop-blur-md">
-                            <div className="flex items-center gap-3 relative">
+                        <div className="p-3 bg-[#111113]/80 border-t border-white/[0.08] backdrop-blur-md">
+                            <div className="flex items-center gap-2 relative">
                                 <button
                                     type="button"
-                                    onClick={() => toast("Image sharing coming soon!", "info")}
-                                    className="p-2 text-slate-400 hover:text-primary transition-colors glass-panel rounded-full border-white/5"
+                                    onClick={() => imageInputRef.current?.click()}
+                                    disabled={uploadingImage}
+                                    className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.06] transition-colors disabled:opacity-50"
                                 >
-                                    <ImageIcon className="w-5 h-5" />
+                                    {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
                                 </button>
+                                <input
+                                    ref={imageInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={handleImageSelect}
+                                />
                                 <input
                                     type="text"
                                     value={messageInput}
                                     onKeyDown={handleKeyDown}
                                     onChange={(e) => onTyping(e.target.value)}
                                     placeholder="Type a message..."
-                                    className="flex-1 bg-white/5 border border-white/10 rounded-full py-3 px-6 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder-slate-500"
+                                    className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-lg py-2 px-3.5 text-xs text-white focus:outline-none focus:border-white/30 placeholder-zinc-500"
                                 />
                                 <button
                                     type="button"
                                     onClick={handleSend}
                                     disabled={!messageInput.trim()}
-                                    className={`p-3 rounded-full flex items-center justify-center transition-all ${messageInput.trim() ? "bg-primary text-white shadow-[0_0_15px_rgba(235,54,120,0.5)]" : "glass-panel text-slate-400 border-white/5 outline-none cursor-not-allowed"
-                                        }`}>
-                                    <Send className="w-4 h-4" />
+                                    className="btn-primary !p-2 !rounded-lg disabled:opacity-40"
+                                >
+                                    <Send className="w-3.5 h-3.5" />
                                 </button>
                             </div>
                         </div>
                     </>
                 ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center p-12">
-                        <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6">
-                            <Send className="w-10 h-10 text-primary opacity-50" />
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+                        <div className="w-12 h-12 bg-white/[0.04] border border-white/[0.08] rounded-xl flex items-center justify-center mb-3">
+                            <Send className="w-5 h-5 text-zinc-400" />
                         </div>
-                        <h3 className="text-xl font-bold text-white mb-2">Your Messages</h3>
-                        <p className="text-slate-400 max-w-xs mx-auto">
-                            Send private photos and messages to a friend or group.
+                        <h3 className="text-sm font-semibold text-white mb-1">Your Messages</h3>
+                        <p className="text-zinc-500 text-xs max-w-xs mx-auto">
+                            Select a chat or start a new conversation to communicate.
                         </p>
                     </div>
                 )}
-
             </div>
         </div>
     );

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useRef } from "react";
-import { Image as ImageIcon, Send, Loader2, X } from "lucide-react";
+import { Image as ImageIcon, Loader2, X, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import apiClient from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -10,7 +10,7 @@ interface CreatePostProps {
     onSuccess?: () => void;
 }
 
-const SUGGESTED_TAGS = ["tech", "ai", "web3", "design", "lifestyle", "coding", "art"];
+const SUGGESTED_TAGS = ["tech", "engineering", "ai", "design", "thoughts", "code"];
 
 export default function CreatePost({ onSuccess }: CreatePostProps) {
     const { user } = useAuth();
@@ -67,9 +67,6 @@ export default function CreatePost({ onSuccess }: CreatePostProps) {
         setLoading(true);
         setError(null);
 
-        let uploadedPublicId: string | null = null;
-        let uploadedType: string | null = null;
-
         try {
             let mediaArray = [];
 
@@ -81,33 +78,23 @@ export default function CreatePost({ onSuccess }: CreatePostProps) {
                 });
 
                 const { url, publicId } = uploadRes.data.data;
-                uploadedPublicId = publicId;
 
                 let mediaType = "document";
                 if (image.type.startsWith("image/")) mediaType = "image";
                 else if (image.type.startsWith("video/")) mediaType = "video";
                 else if (image.type.startsWith("audio/")) mediaType = "audio";
 
-                uploadedType = mediaType;
                 mediaArray.push({ url, type: mediaType, publicId });
             }
 
-            try {
-                await apiClient.post("/blogs", {
-                    title,
-                    content,
-                    tags,
-                    media: mediaArray,
-                    status: "published"
-                });
-            } catch (postErr) {
-                if (uploadedPublicId) {
-                    await apiClient.delete(`/media/${uploadedPublicId}`, {
-                        params: { type: uploadedType === "video" ? "video" : "image" }
-                    }).catch(delErr => console.error("Cleanup failed", delErr));
-                }
-                throw postErr;
-            }
+            await apiClient.post("/blogs", {
+                title,
+                content,
+                tags,
+                media: mediaArray,
+                image: mediaArray[0]?.url || "no-photo.jpg",
+                status: "published"
+            });
 
             setTitle("");
             setContent("");
@@ -115,7 +102,6 @@ export default function CreatePost({ onSuccess }: CreatePostProps) {
             setImage(null);
             setImagePreview(null);
             setIsExpanded(false);
-
             if (onSuccess) onSuccess();
         } catch (err: any) {
             setError(err.response?.data?.message || "Failed to create post.");
@@ -127,43 +113,45 @@ export default function CreatePost({ onSuccess }: CreatePostProps) {
     const userAvatar = user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=me";
 
     return (
-        <motion.div layout className="glass-panel p-4 w-full space-y-4 shadow-xl border border-white/5">
+        <div className="bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08] hover:border-white/[0.14] rounded-xl p-4 transition-all">
             {!isExpanded ? (
-                <div onClick={() => setIsExpanded(true)} className="flex items-center gap-4 cursor-text">
-                    <div className="w-10 h-10 rounded-full bg-slate-800 border border-white/10 flex-shrink-0 overflow-hidden relative">
+                <div onClick={() => setIsExpanded(true)} className="flex items-center gap-3 cursor-text">
+                    <div className="w-8 h-8 rounded-full bg-zinc-800 border border-white/10 flex-shrink-0 overflow-hidden relative">
                         <Image src={userAvatar} alt="user" fill unoptimized className="object-cover" />
                     </div>
-                    <div className="w-full bg-white/5 border border-white/5 rounded-full px-6 py-2.5 text-slate-500 text-sm hover:bg-white/10 transition-all">
-                        What&apos;s on your mind, {user?.name?.split(" ")[0]}?
+                    <div className="w-full bg-zinc-900/60 border border-white/[0.06] rounded-lg px-4 py-2 text-zinc-500 text-xs hover:border-white/[0.12] transition-colors">
+                        Share an update, insight, or note...
                     </div>
                 </div>
             ) : (
-                <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-                    <div className="flex items-center gap-2 mb-2 px-1">
-                        <Image src={userAvatar} alt="avatar" width={24} height={24} unoptimized className="w-6 h-6 rounded-full object-cover" />
-                        <span className="text-xs font-bold text-slate-400">{user?.name}</span>
+                <form onSubmit={handleSubmit} className="space-y-3.5 pt-1">
+                    <div className="flex items-center gap-2 px-0.5">
+                        <div className="w-5 h-5 rounded-full overflow-hidden bg-zinc-800 border border-white/10 relative">
+                            <Image src={userAvatar} alt="avatar" fill unoptimized className="object-cover" />
+                        </div>
+                        <span className="text-xs font-medium text-zinc-400">{user?.name}</span>
                     </div>
 
                     <input
                         type="text"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        placeholder="Post Title"
+                        placeholder="Title"
                         required
-                        className="w-full bg-transparent border-none outline-none text-xl font-bold placeholder:text-slate-600 text-white"
+                        className="w-full bg-transparent border-none outline-none text-base font-semibold placeholder:text-zinc-600 text-white"
                     />
 
                     <textarea
                         value={content}
                         onChange={(e) => setContent(e.target.value)}
-                        placeholder="Compose your story..."
+                        placeholder="What's happening?"
                         required
-                        rows={4}
-                        className="w-full bg-transparent border-none outline-none text-slate-300 placeholder:text-slate-600 resize-none text-sm leading-relaxed"
+                        rows={3}
+                        className="w-full bg-transparent border-none outline-none text-zinc-300 placeholder:text-zinc-600 resize-none text-xs leading-relaxed"
                     />
 
                     {imagePreview && (
-                        <div className="relative rounded-2xl overflow-hidden border border-white/10 aspect-video group bg-slate-900 flex items-center justify-center">
+                        <div className="relative rounded-lg overflow-hidden border border-white/[0.08] aspect-video group bg-zinc-950 flex items-center justify-center max-h-[300px]">
                             {image?.type.startsWith("image/") ? (
                                 <Image src={imagePreview} alt="Preview" fill unoptimized className="object-cover" />
                             ) : image?.type.startsWith("video/") ? (
@@ -171,31 +159,32 @@ export default function CreatePost({ onSuccess }: CreatePostProps) {
                             ) : image?.type.startsWith("audio/") ? (
                                 <audio src={imagePreview} className="w-full" controls />
                             ) : (
-                                <span className="text-white font-bold uppercase p-10">{image?.name}</span>
+                                <span className="text-zinc-400 text-xs font-mono p-4">{image?.name}</span>
                             )}
                             <button
                                 type="button"
                                 onClick={() => { setImage(null); setImagePreview(null); }}
-                                className="absolute top-2 right-2 p-1.5 bg-black/50 backdrop-blur-md rounded-full text-white hover:bg-black/70 transition-all z-10"
+                                className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 rounded-full text-zinc-300 hover:text-white transition-all z-10"
                             >
-                                <X className="w-4 h-4" />
+                                <X className="w-3.5 h-3.5" />
                             </button>
                         </div>
                     )}
 
-                    <div className="space-y-3 pt-2">
-                        <div className="flex flex-wrap gap-2">
+                    {/* Tags */}
+                    <div className="space-y-2 pt-1 border-t border-white/[0.06]">
+                        <div className="flex flex-wrap gap-1.5 items-center">
                             <AnimatePresence>
                                 {tags.map(tag => (
                                     <motion.span
-                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        initial={{ opacity: 0, scale: 0.9 }}
                                         animate={{ opacity: 1, scale: 1 }}
-                                        exit={{ opacity: 0, scale: 0.8 }}
+                                        exit={{ opacity: 0, scale: 0.9 }}
                                         key={tag}
-                                        className="bg-primary/20 text-primary px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight flex items-center gap-1 border border-primary/20 group"
+                                        className="inline-flex items-center gap-1 text-[11px] font-medium bg-zinc-800/80 text-zinc-200 border border-white/[0.08] px-2 py-0.5 rounded-md"
                                     >
                                         #{tag}
-                                        <button type="button" onClick={() => removeTag(tag)} className="hover:text-white">
+                                        <button type="button" onClick={() => removeTag(tag)} className="text-zinc-500 hover:text-zinc-200">
                                             <X className="w-3 h-3" />
                                         </button>
                                     </motion.span>
@@ -206,63 +195,64 @@ export default function CreatePost({ onSuccess }: CreatePostProps) {
                                 value={tagInput}
                                 onChange={(e) => setTagInput(e.target.value)}
                                 onKeyDown={handleAddTag}
-                                placeholder="# Add custom tag..."
-                                className="bg-transparent border-none outline-none text-xs text-primary placeholder:text-slate-700 min-w-[120px]"
+                                placeholder="Add tag (Enter)..."
+                                className="bg-transparent border-none outline-none text-[11px] text-zinc-300 placeholder:text-zinc-600 min-w-[100px]"
                             />
                         </div>
 
-                        <div className="flex flex-wrap gap-2 items-center">
-                            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mr-1">Suggestions:</span>
+                        <div className="flex flex-wrap gap-1.5 items-center text-[11px] text-zinc-500">
+                            <span>Suggestions:</span>
                             {SUGGESTED_TAGS.map(tag => (
                                 <button
                                     key={tag}
                                     type="button"
                                     onClick={() => toggleTag(tag)}
-                                    className={`text-[10px] px-2 py-0.5 rounded-md border transition-all ${tags.includes(tag)
-                                            ? "bg-primary border-primary text-white"
-                                            : "bg-white/5 border-white/10 text-slate-500 hover:border-white/20 hover:text-slate-300"
-                                        }`}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                                        tags.includes(tag)
+                                            ? "bg-white text-zinc-950"
+                                            : "bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400"
+                                    }`}
                                 >
-                                    {tag}
+                                    #{tag}
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    {error && <p className="text-red-400 text-xs px-1">{error}</p>}
+                    {error && <p className="text-rose-400 text-xs">{error}</p>}
 
-                    <div className="pt-4 border-t border-white/5 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                    <div className="pt-2.5 border-t border-white/[0.06] flex items-center justify-between">
+                        <div>
                             <input type="file" hidden ref={fileInputRef} onChange={handleImageSelect} accept="image/*,video/*,audio/*,.pdf,.doc,.docx" />
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                className="p-2 rounded-lg hover:bg-white/5 text-slate-400 transition-all flex items-center gap-2 group"
+                                className="p-1.5 rounded-md hover:bg-white/[0.06] text-zinc-400 hover:text-zinc-200 transition-colors flex items-center gap-1.5 text-xs"
                             >
-                                <ImageIcon className={`w-5 h-5 ${image ? 'text-primary' : ''}`} />
-                                {image && <span className="text-xs text-slate-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis max-w-[100px]">{image.name}</span>}
+                                <ImageIcon className="w-4 h-4" />
+                                <span className="text-[11px]">Media</span>
                             </button>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                             <button
                                 type="button"
                                 onClick={() => { setIsExpanded(false); setImage(null); setImagePreview(null); }}
-                                className="text-slate-500 text-sm font-medium hover:text-white transition-all"
+                                className="text-zinc-400 hover:text-zinc-200 text-xs px-2.5 py-1 rounded transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
                                 disabled={loading || !content.trim() || !title.trim()}
-                                className="btn-primary px-6 py-2 flex items-center gap-2 h-10 disabled:opacity-50"
+                                className="btn-primary !text-xs !py-1.5 !px-4"
                             >
-                                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Post <Send className="w-4 h-4" /></>}
+                                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Publish"}
                             </button>
                         </div>
                     </div>
                 </form>
             )}
-        </motion.div>
+        </div>
     );
 }

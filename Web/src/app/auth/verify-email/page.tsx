@@ -98,7 +98,7 @@ export default function VerifyEmailPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="glass-panel max-w-md w-full p-10 relative overflow-hidden"
             >
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-secondary to-accent" />
+                <div className="absolute top-0 left-0 w-full h-px bg-white/20" />
                 <Suspense fallback={
                     <div className="flex justify-center py-8">
                         <Loader2 className="w-6 h-6 animate-spin text-primary" />

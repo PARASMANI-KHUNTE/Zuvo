@@ -1,13 +1,13 @@
 "use client";
 import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Image as ImageIcon, Globe, MessageSquare, Send, Loader2 } from "lucide-react";
+import { X, Image as ImageIcon, Globe, Loader2 } from "lucide-react";
 import { useModals } from "@/context/ModalContext";
 import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/lib/api";
 import Image from "next/image";
 
-const SUGGESTED_TAGS = ["tech", "ai", "web3", "design", "lifestyle", "coding", "art"];
+const SUGGESTED_TAGS = ["tech", "ai", "engineering", "design", "thoughts", "code"];
 
 export default function ComposeModal() {
     const { activeModal, closeModal } = useModals();
@@ -76,9 +76,6 @@ export default function ComposeModal() {
         setIsLoading(true);
         setError(null);
 
-        let uploadedPublicId: string | null = null;
-        let uploadedType: string | null = null;
-
         try {
             let mediaArray = [];
             if (image) {
@@ -89,36 +86,25 @@ export default function ComposeModal() {
                 });
 
                 const { url, publicId } = uploadRes.data.data;
-                uploadedPublicId = publicId;
-
                 let mediaType = "document";
                 if (image.type.startsWith("image/")) mediaType = "image";
                 else if (image.type.startsWith("video/")) mediaType = "video";
                 else if (image.type.startsWith("audio/")) mediaType = "audio";
 
-                uploadedType = mediaType;
                 mediaArray.push({ url, type: mediaType, publicId });
             }
 
-            try {
-                await apiClient.post("/blogs", {
-                    title,
-                    content,
-                    tags,
-                    media: mediaArray,
-                    status: "published"
-                });
-            } catch (postErr) {
-                if (uploadedPublicId) {
-                    await apiClient.delete(`/media/${uploadedPublicId}`, {
-                        params: { type: uploadedType === "video" ? "video" : "image" }
-                    }).catch(e => console.error("Cleanup failed", e));
-                }
-                throw postErr;
-            }
+            await apiClient.post("/blogs", {
+                title,
+                content,
+                tags,
+                media: mediaArray,
+                image: mediaArray[0]?.url || "no-photo.jpg",
+                status: "published"
+            });
 
-            reset();
-            closeModal();
+            handleClose();
+            window.location.reload();
         } catch (err: any) {
             setError(err.response?.data?.message || "Failed to create post.");
         } finally {
@@ -126,7 +112,7 @@ export default function ComposeModal() {
         }
     };
 
-    const userAvatar = user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || "me"}`;
+    const userAvatar = user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=me";
 
     return (
         <AnimatePresence>
@@ -136,35 +122,37 @@ export default function ComposeModal() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     onClick={handleClose}
-                    className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+                    className="absolute inset-0 bg-black/75 backdrop-blur-sm"
                 />
 
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                    initial={{ opacity: 0, scale: 0.96, y: 10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                    className="relative w-full max-w-xl glass-panel border border-white/10 rounded-3xl shadow-2xl overflow-hidden"
+                    exit={{ opacity: 0, scale: 0.96, y: 10 }}
+                    className="relative w-full max-w-xl bg-[#111113] border border-white/[0.1] rounded-2xl shadow-2xl overflow-hidden"
                 >
-                    <div className="p-6 space-y-4">
-                        <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                <MessageSquare className="w-5 h-5 text-primary" /> Create New Post
-                            </h2>
+                    <div className="p-5 space-y-4">
+                        {/* Header */}
+                        <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                                New Post
+                            </span>
                             <button
                                 onClick={handleClose}
-                                className="p-2 hover:bg-white/5 rounded-full text-slate-400 hover:text-white transition-colors"
+                                className="p-1 text-zinc-500 hover:text-white rounded-md transition-colors"
                             >
-                                <X className="w-5 h-5" />
+                                <X className="w-4 h-4" />
                             </button>
                         </div>
 
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full border border-white/10 overflow-hidden relative">
+                        {/* Author info */}
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-zinc-800 border border-white/10 overflow-hidden relative">
                                 <Image src={userAvatar} alt="me" fill unoptimized className="object-cover" />
                             </div>
                             <div>
-                                <p className="text-sm font-bold text-white">{user?.name}</p>
-                                <p className="text-xs text-slate-500">@{user?.username} · Public</p>
+                                <p className="text-xs font-medium text-white">{user?.name}</p>
+                                <p className="text-[11px] text-zinc-500">@{user?.username}</p>
                             </div>
                         </div>
 
@@ -172,51 +160,53 @@ export default function ComposeModal() {
                             type="text"
                             value={title}
                             onChange={e => setTitle(e.target.value)}
-                            placeholder="Give your post a title..."
-                            className="w-full bg-transparent border-b border-white/10 pb-2 outline-none text-lg font-bold text-white placeholder:text-slate-600 focus:border-primary/40 transition-colors"
+                            placeholder="Title"
+                            className="w-full bg-transparent border-none outline-none text-base font-semibold text-white placeholder:text-zinc-600"
                         />
 
                         <textarea
                             autoFocus
                             value={content}
                             onChange={(e) => setContent(e.target.value)}
-                            placeholder="Unleash your thoughts..."
-                            className="w-full bg-transparent border-none outline-none text-base text-slate-100 placeholder:text-slate-600 resize-none min-h-[120px] leading-relaxed"
+                            placeholder="Write your story..."
+                            rows={5}
+                            className="w-full bg-transparent border-none outline-none text-xs text-zinc-200 placeholder:text-zinc-600 resize-none leading-relaxed"
                         />
 
                         {imagePreview && (
-                            <div className="relative rounded-xl overflow-hidden border border-white/10 bg-slate-900 flex items-center justify-center">
+                            <div className="relative rounded-lg overflow-hidden border border-white/[0.08] bg-zinc-950 flex items-center justify-center max-h-52">
                                 {image?.type.startsWith("image/") ? (
-                                    <Image src={imagePreview} alt="Preview" width={800} height={400} unoptimized className="w-full h-auto max-h-48 object-cover" />
+                                    <Image src={imagePreview} alt="Preview" width={800} height={400} unoptimized className="w-full h-auto max-h-52 object-cover" />
                                 ) : image?.type.startsWith("video/") ? (
-                                    <video src={imagePreview} className="w-full max-h-48 object-cover" controls />
+                                    <video src={imagePreview} className="w-full max-h-52 object-cover" controls />
                                 ) : image?.type.startsWith("audio/") ? (
                                     <audio src={imagePreview} className="w-full" controls />
                                 ) : (
-                                    <span className="text-white font-bold uppercase p-10">{image?.name}</span>
+                                    <span className="text-zinc-400 text-xs font-mono p-6">{image?.name}</span>
                                 )}
                                 <button
                                     onClick={() => { setImage(null); setImagePreview(null); }}
-                                    className="absolute top-2 right-2 p-1 bg-black/60 rounded-full z-10"
+                                    className="absolute top-2 right-2 p-1 bg-black/70 rounded-full text-zinc-300 hover:text-white z-10"
                                 >
-                                    <X className="w-3 h-3 text-white" />
+                                    <X className="w-3.5 h-3.5" />
                                 </button>
                             </div>
                         )}
 
-                        <div className="space-y-3">
-                            <div className="flex flex-wrap gap-2 items-center">
+                        {/* Tags */}
+                        <div className="space-y-2 pt-2 border-t border-white/[0.06]">
+                            <div className="flex flex-wrap gap-1.5 items-center">
                                 <AnimatePresence>
                                     {tags.map(tag => (
                                         <motion.span
-                                            initial={{ opacity: 0, scale: 0.8 }}
+                                            initial={{ opacity: 0, scale: 0.9 }}
                                             animate={{ opacity: 1, scale: 1 }}
-                                            exit={{ opacity: 0, scale: 0.8 }}
+                                            exit={{ opacity: 0, scale: 0.9 }}
                                             key={tag}
-                                            className="bg-primary/20 text-primary text-[10px] font-bold uppercase tracking-tight px-3 py-1 rounded-full border border-primary/20 flex items-center gap-1 group"
+                                            className="text-[11px] font-medium bg-zinc-800 text-zinc-200 border border-white/[0.08] px-2 py-0.5 rounded-md inline-flex items-center gap-1"
                                         >
                                             #{tag}
-                                            <button onClick={() => setTags(tags.filter(t => t !== tag))} className="hover:text-white transition-colors">
+                                            <button onClick={() => setTags(tags.filter(t => t !== tag))} className="text-zinc-500 hover:text-white">
                                                 <X className="w-3 h-3" />
                                             </button>
                                         </motion.span>
@@ -227,50 +217,53 @@ export default function ComposeModal() {
                                     value={tagInput}
                                     onChange={e => setTagInput(e.target.value)}
                                     onKeyDown={handleTagKey}
-                                    placeholder="+ Add tag..."
-                                    className="bg-transparent border-none outline-none text-xs text-primary placeholder:text-slate-700 min-w-[80px]"
+                                    placeholder="Add tag (Enter)..."
+                                    className="bg-transparent border-none outline-none text-[11px] text-zinc-300 placeholder:text-zinc-600 min-w-[90px]"
                                 />
                             </div>
 
-                            <div className="flex flex-wrap gap-2 items-center">
-                                <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mr-1">Suggestions:</span>
+                            <div className="flex flex-wrap gap-1.5 items-center text-[11px] text-zinc-500">
+                                <span>Suggested:</span>
                                 {SUGGESTED_TAGS.map(tag => (
                                     <button
                                         key={tag}
                                         type="button"
                                         onClick={() => toggleTag(tag)}
-                                        className={`text-[10px] px-2 py-0.5 rounded-md border transition-all ${tags.includes(tag)
-                                                ? "bg-primary border-primary text-white"
-                                                : "bg-white/5 border-white/10 text-slate-500 hover:border-white/20 hover:text-slate-300"
-                                            }`}
+                                        className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                                            tags.includes(tag)
+                                                ? "bg-white text-zinc-950"
+                                                : "bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400"
+                                        }`}
                                     >
-                                        {tag}
+                                        #{tag}
                                     </button>
                                 ))}
                             </div>
                         </div>
 
-                        {error && <p className="text-red-400 text-xs">{error}</p>}
+                        {error && <p className="text-rose-400 text-xs">{error}</p>}
 
-                        <div className="flex items-center gap-4 text-slate-500 border-t border-white/5 pt-4">
+                        {/* Footer */}
+                        <div className="flex items-center justify-between border-t border-white/[0.06] pt-3">
                             <input type="file" hidden ref={fileInputRef} onChange={handleImageSelect} accept="image/*,video/*,audio/*,.pdf,.doc,.docx" />
                             <button
-                                className="hover:text-primary transition-colors flex items-center gap-1 text-sm font-medium"
+                                className="text-zinc-400 hover:text-white transition-colors flex items-center gap-1.5 text-xs"
                                 onClick={() => fileInputRef.current?.click()}
                             >
-                                <ImageIcon className={`w-4 h-4 ${image ? 'text-primary' : ''}`} /> {image ? <span className="whitespace-nowrap overflow-hidden text-ellipsis max-w-[100px]">{image.name}</span> : "Media"}
+                                <ImageIcon className="w-4 h-4" />
+                                <span>{image ? image.name : "Attach"}</span>
                             </button>
 
-                            <div className="ml-auto flex items-center gap-6">
-                                <div className="flex items-center gap-2 text-xs text-slate-600 font-bold border-r border-white/10 pr-6 uppercase tracking-widest leading-none">
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-1 text-[11px] text-zinc-500">
                                     <Globe className="w-3 h-3" /> Public
                                 </div>
                                 <button
                                     onClick={handlePost}
                                     disabled={!content.trim() || !title.trim() || isLoading}
-                                    className="btn-primary px-8 py-2.5 rounded-full font-bold flex items-center gap-2 disabled:opacity-50 disabled:grayscale transition-all shadow-neon-blue h-11"
+                                    className="btn-primary !text-xs !py-1.5 !px-5"
                                 >
-                                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Post <Send className="w-4 h-4" /></>}
+                                    {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Publish"}
                                 </button>
                             </div>
                         </div>

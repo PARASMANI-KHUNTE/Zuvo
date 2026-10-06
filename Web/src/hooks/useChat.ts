@@ -129,7 +129,8 @@ export const useChat = (conversationId?: string) => {
     }, [socket, isConnected, conversationId, fetchConversations, user]);
 
     const sendMessage = useCallback((content: string, attachments: any[] = []) => {
-        if (!socket || !conversationId || !content.trim() || !user) return;
+        if (!socket || !conversationId || !user) return;
+        if (!content.trim() && attachments.length === 0) return;
 
         const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         const myId = user.id || user._id;

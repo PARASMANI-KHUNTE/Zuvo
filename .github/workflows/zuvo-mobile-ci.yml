@@ -2,19 +2,19 @@ name: Zuvo Mobile CI/CD
 
 on:
   push:
-    branches: [ reactnativeapp, production ]
+    branches: [ main, reactnativeapp, production ]
   pull_request:
-    branches: [ reactnativeapp ]
+    branches: [ main, reactnativeapp ]
 
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Use Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: MobileApp/ZuvoMobile/package-lock.json
 
@@ -22,6 +22,11 @@ jobs:
         run: |
           cd MobileApp/ZuvoMobile
           npm install
+
+      - name: Typecheck
+        run: |
+          cd MobileApp/ZuvoMobile
+          npx tsc --noEmit
 
       - name: Run lint
         run: |
@@ -38,14 +43,29 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/production'
     steps:
-      - uses: actions/checkout@v3
-      - name: set up JDK 11
-        uses: actions/setup-java@v3
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
         with:
-          java-version: '11'
-          distribution: 'temurin'
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: MobileApp/ZuvoMobile/package-lock.json
 
-      - name: Build Android Release
+      - name: Install dependencies
         run: |
-          cd MobileApp/ZuvoMobile/android
-          ./gradlew assembleRelease
+          cd MobileApp/ZuvoMobile
+          npm install
+
+      # There is no checked-in android/ folder (managed workflow), so validate the
+      # Android release bundle instead of running gradlew directly.
+      - name: Build Android JS bundle
+        run: |
+          cd MobileApp/ZuvoMobile
+          npx expo export --platform android --output-dir dist-android
+
+      - name: Upload Android bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: zuvo-android-bundle
+          path: MobileApp/ZuvoMobile/dist-android
+          retention-days: 7

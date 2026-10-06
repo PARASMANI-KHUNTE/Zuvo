@@ -137,6 +137,57 @@ export default function ShortsPage() {
 
     const handleBack = () => router.back();
 
+    const handleLike = async (short: ShortVideo) => {
+        if (!isAuthenticated) {
+            router.push("/auth/login");
+            return;
+        }
+
+        const wasLiked = !!short.isLiked;
+        setShorts(prev => prev.map(s => s._id === short._id
+            ? { ...s, isLiked: !wasLiked, likesCount: Math.max(0, s.likesCount + (wasLiked ? -1 : 1)) }
+            : s
+        ));
+
+        try {
+            await apiClient.post("/interactions/like", {
+                postId: short._id,
+                action: wasLiked ? "unlike" : "like"
+            });
+        } catch (err) {
+            // Roll back the optimistic update
+            setShorts(prev => prev.map(s => s._id === short._id
+                ? { ...s, isLiked: wasLiked, likesCount: s.likesCount + (wasLiked ? 1 : -1) }
+                : s
+            ));
+            toast("Could not update like", "error");
+        }
+    };
+
+    const handleShare = async (short: ShortVideo) => {
+        let shareUrl = `${window.location.origin}/post/${short._id}`;
+        try {
+            const res = await apiClient.get(`/interactions/share/${short._id}`);
+            shareUrl = res.data?.data?.shareUrl || shareUrl;
+        } catch {
+            // Fall back to the canonical post URL
+        }
+
+        try {
+            if (typeof navigator !== "undefined" && navigator.share) {
+                await navigator.share({ title: short.title, url: shareUrl });
+            } else {
+                await navigator.clipboard.writeText(shareUrl);
+                toast("Link copied to clipboard", "success");
+            }
+        } catch (err: any) {
+            // User dismissed the native share sheet
+            if (err?.name !== "AbortError") {
+                toast("Could not share this short", "error");
+            }
+        }
+    };
+
     const fallbackAvatar = (seed: string) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
 
     return (
@@ -214,7 +265,7 @@ export default function ShortsPage() {
 
                                 {/* Floating Actions Right side */}
                                 <div className="flex flex-col items-center gap-6 mb-4">
-                                    <button className="flex flex-col items-center gap-1 group">
+                                    <button className="flex flex-col items-center gap-1 group" onClick={() => handleLike(short)}>
                                         <div className={`p-3 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 group-hover:bg-white/20 transition-all ${short.isLiked ? 'text-rose-500' : 'text-white'}`}>
                                             <Heart className={`w-6 h-6 ${short.isLiked ? 'fill-rose-500' : ''}`} />
                                         </div>
@@ -231,7 +282,7 @@ export default function ShortsPage() {
                                         <span className="text-xs font-bold text-white drop-shadow-md">{short.commentsCount}</span>
                                     </button>
 
-                                    <button className="flex flex-col items-center gap-1 group">
+                                    <button className="flex flex-col items-center gap-1 group" onClick={() => handleShare(short)}>
                                         <div className="p-3 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 group-hover:bg-white/20 transition-all text-white">
                                             <Share2 className="w-6 h-6" />
                                         </div>

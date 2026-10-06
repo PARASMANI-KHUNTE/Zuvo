@@ -13,6 +13,17 @@ const mongoose = require("mongoose");
 
 const app = express();
 
+// Search results are cached in Redis under a versioned key. The background
+// worker bumps SEARCH_CACHE_VERSION_KEY (SEARCH_INDEX task) whenever a post is
+// created, which invalidates every cached query at once.
+const SEARCH_CACHE_VERSION_KEY = "search:cache:version";
+const SEARCH_CACHE_TTL = 120;
+
+const buildSearchCacheKey = (version, parts) => {
+    const digest = require("crypto").createHash("sha1").update(parts.join("|")).digest("hex");
+    return `search:cache:${version}:${digest}`;
+};
+
 app.use(requestTrace);
 app.use(metrics.metricsMiddleware(process.env.SERVICE_NAME));
 app.use(faultInjection);
@@ -20,6 +31,40 @@ app.use(compression());
 app.use(express.json());
 
 /**
+ * @openapi
+ * /api/v1/search:
+ *   get:
+ *     tags: [Search]
+ *     summary: Search posts and users
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *           minLength: 2
+ *         description: Search query
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [all, posts, users]
+ *           default: all
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Search results
+ *       400:
+ *         description: Query shorter than 2 characters
  * @desc    Search posts and users
  * @route   GET /api/v1/search?q=query&type=posts|users|all&page=1&limit=10
  * @access  Public
@@ -36,6 +81,21 @@ app.get("/api/v1/search", rateLimiter(3600, 500), async (req, res, next) => {
         const searchRegex = new RegExp(q.trim(), "i");
 
         logger.info(`Search query: "${q}" | type: ${type}`);
+
+        // Serve from the versioned cache when possible
+        let cacheKey = null;
+        try {
+            const version = (await redisClient.get(SEARCH_CACHE_VERSION_KEY)) || "0";
+            cacheKey = buildSearchCacheKey(version, [q.trim().toLowerCase(), type, page, limit]);
+            const cached = cacheKey ? await redisClient.get(cacheKey) : null;
+            if (cached) {
+                logger.info(`Search cache hit for "${q}"`);
+                return res.status(200).json(JSON.parse(cached));
+            }
+        } catch (cacheErr) {
+            logger.warn(`Search cache unavailable, falling through to DB: ${cacheErr.message}`);
+            cacheKey = null;
+        }
 
         let results = { posts: [], users: [] };
         let postAuthorIds = new Set();
@@ -90,19 +150,37 @@ app.get("/api/v1/search", rateLimiter(3600, 500), async (req, res, next) => {
             results.users = [...additionalAuthors, ...users];
         }
 
-        res.status(200).json({
+        const payload = {
             success: true,
             query: q,
             page: parseInt(page),
             limit: parseInt(limit),
             data: results
-        });
+        };
+
+        if (cacheKey) {
+            try {
+                await redisClient.set(cacheKey, JSON.stringify(payload), { EX: SEARCH_CACHE_TTL });
+            } catch (cacheErr) {
+                logger.warn(`Failed to cache search results: ${cacheErr.message}`);
+            }
+        }
+
+        res.status(200).json(payload);
     } catch (err) {
         next(err);
     }
 });
 
 /**
+ * @openapi
+ * /api/v1/search/trending:
+ *   get:
+ *     tags: [Search]
+ *     summary: Get trending topics/posts from the last 7 days
+ *     responses:
+ *       200:
+ *         description: Trending topics
  * @desc    Get trending topics/posts
  * @route   GET /api/v1/search/trending
  * @access  Public
@@ -137,6 +215,16 @@ app.get("/api/v1/search/trending", async (req, res, next) => {
 });
 
 /**
+ * @openapi
+ * /api/v1/search/suggested-users:
+ *   get:
+ *     tags: [Search]
+ *     summary: Get suggested users to follow (excludes self and already followed)
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Suggested users
  * @desc    Get suggested users to follow
  * @route   GET /api/v1/search/suggested-users
  * @access  Public

@@ -20,26 +20,53 @@ export interface Post {
     isLiked?: boolean;
 }
 
+const PAGE_SIZE = 10;
+
 export function usePosts() {
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
 
-    const fetchPosts = useCallback(async () => {
+    const fetchPosts = useCallback(async (pageNum: number = 1) => {
         try {
-            setLoading(true);
-            const response = await apiClient.get("/blogs");
+            if (pageNum === 1) {
+                setLoading(true);
+            } else {
+                setLoadingMore(true);
+            }
+
+            const response = await apiClient.get(`/blogs?page=${pageNum}&limit=${PAGE_SIZE}`);
             if (response.data.success) {
-                setPosts(response.data.data);
+                const incoming: Post[] = response.data.data || [];
+                setPosts(prev => (pageNum === 1 ? incoming : [...prev, ...incoming]));
+                setHasMore(
+                    typeof response.data.pages === "number"
+                        ? pageNum < response.data.pages
+                        : incoming.length === PAGE_SIZE
+                );
+                setPage(pageNum);
+                setError(null);
             } else {
                 setError("Failed to fetch posts");
             }
         } catch (err: any) {
             setError(err.message || "An error occurred while fetching posts");
         } finally {
-            setLoading(false);
+            if (pageNum === 1) {
+                setLoading(false);
+            } else {
+                setLoadingMore(false);
+            }
         }
     }, []);
+
+    const loadMore = useCallback(() => {
+        if (loading || loadingMore || !hasMore) return;
+        fetchPosts(page + 1);
+    }, [fetchPosts, loading, loadingMore, hasMore, page]);
 
     const fetchPostById = useCallback(async (id: string) => {
         try {
@@ -82,8 +109,20 @@ export function usePosts() {
     }, []);
 
     useEffect(() => {
-        fetchPosts();
+        fetchPosts(1);
     }, [fetchPosts]);
 
-    return { posts, loading, error, refresh: fetchPosts, fetchPostById, fetchComments, fetchReplies, addComment };
+    return {
+        posts,
+        loading,
+        loadingMore,
+        error,
+        hasMore,
+        refresh: () => fetchPosts(1),
+        loadMore,
+        fetchPostById,
+        fetchComments,
+        fetchReplies,
+        addComment
+    };
 }

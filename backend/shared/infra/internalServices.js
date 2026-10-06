@@ -4,15 +4,38 @@ const { redisClient } = require("./redis");
 const { asyncLocalStorage } = require("./requestTrace");
 
 class InternalServiceClient {
-    constructor() {
-        this.authBaseUrl = process.env.AUTH_INTERNAL_URL || process.env.AUTH_SERVICE_URL || "http://127.0.0.1:8010";
-        this.blogBaseUrl = process.env.BLOG_INTERNAL_URL || "http://127.0.0.1:8001";
-        this.interactionsBaseUrl = process.env.INTERACTIONS_INTERNAL_URL || "http://127.0.0.1:8002";
+    get authBaseUrl() {
+        return process.env.AUTH_INTERNAL_URL || process.env.AUTH_SERVICE_URL || "http://127.0.0.1:8010";
+    }
+    get blogBaseUrl() {
+        return process.env.BLOG_INTERNAL_URL || "http://127.0.0.1:8001";
+    }
+    get interactionsBaseUrl() {
+        return process.env.INTERACTIONS_INTERNAL_URL || "http://127.0.0.1:8002";
+    }
+    get mediaBaseUrl() {
+        return process.env.MEDIA_INTERNAL_URL || "http://127.0.0.1:8003";
     }
 
     async _get(url, requestId) {
         try {
             const response = await axios.get(url, {
+                headers: { "X-Request-ID": requestId },
+                timeout: Number(process.env.INTERNAL_HTTP_TIMEOUT) || 5000
+            });
+            return response.data.data;
+        } catch (err) {
+            logger.error(`Internal call to ${url} failed [Req: ${requestId}]: ${err.message}`, {
+                status: err.response?.status,
+                data: err.response?.data
+            });
+            throw err;
+        }
+    }
+
+    async _post(url, body, requestId) {
+        try {
+            const response = await axios.post(url, body, {
                 headers: { "X-Request-ID": requestId },
                 timeout: Number(process.env.INTERNAL_HTTP_TIMEOUT) || 5000
             });
@@ -48,7 +71,7 @@ class InternalServiceClient {
             return user;
         } catch (err) {
             logger.warn(`Fallback to Unknown User for ${userId}: ${err.message}`);
-            return { id: userId, name: "Unknown User", username: "unknown" };
+            return { id: userId, name: "Unknown User", username: "unknown", avatar: null };
         }
     }
 
@@ -71,6 +94,18 @@ class InternalServiceClient {
     async getPost(postId) {
         const store = asyncLocalStorage.getStore();
         return this._get(`${this.blogBaseUrl}/api/v1/blogs/internal/${postId}`, store?.requestId);
+    }
+
+    /**
+     * Ask the media service to pre-generate compressed derivatives of an upload.
+     */
+    async compressMedia(publicId, resourceType = "image", userId = null) {
+        const store = asyncLocalStorage.getStore();
+        return this._post(`${this.mediaBaseUrl}/api/v1/media/internal/compress`, {
+            publicId,
+            resourceType,
+            userId
+        }, store?.requestId);
     }
 
     /**
@@ -124,16 +159,16 @@ class InternalServiceClient {
                     logger.error(`Batch internal call to Auth failed: ${batchErr.message}`);
                     // Fallback individual IDs to Unknown if batch fails
                     missingIds.forEach(id => {
-                        if (!results[id]) results[id] = { id, name: "Unknown User", username: "unknown" };
+                        if (!results[id]) results[id] = { id, name: "Unknown User", username: "unknown", avatar: null };
                     });
                 }
             }
 
             // Return profiles in the original order (with duplicates if they existed in input)
-            return userIds.map(id => results[id.toString()] || { id: id.toString(), name: "Unknown User", username: "unknown" });
+            return userIds.map(id => results[id.toString()] || { id: id.toString(), name: "Unknown User", username: "unknown", avatar: null });
         } catch (err) {
             logger.error(`getUsersProfiles failed: ${err.message}`);
-            return userIds.map(id => ({ id: id.toString(), name: "Unknown User", username: "unknown" }));
+            return userIds.map(id => ({ id: id.toString(), name: "Unknown User", username: "unknown", avatar: null }));
         }
     }
 }

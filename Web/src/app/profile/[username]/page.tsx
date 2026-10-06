@@ -122,138 +122,142 @@ export default function ProfilePage() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto pb-20">
+        <div className="w-full max-w-4xl mx-auto space-y-6">
             {/* Banner */}
-            <div className="h-48 md:h-64 w-full bg-slate-800 rounded-b-3xl relative overflow-hidden group">
-                <Image src={user.banner} alt="banner" fill unoptimized className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-all duration-700" />
-                <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
+            <div className="h-44 sm:h-56 w-full bg-zinc-900 rounded-xl relative overflow-hidden border border-white/[0.08]">
+                {user.banner ? (
+                    <Image src={user.banner} alt="banner" fill unoptimized className="w-full h-full object-cover opacity-70" />
+                ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-950" />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#09090b]/80 via-transparent to-transparent" />
             </div>
 
             {/* Profile Info */}
-            <div className="px-6 -mt-16 relative z-10">
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                    <div className="space-y-4">
-                        <div className="w-32 h-32 md:-mt-16 rounded-3xl bg-gradient-to-br from-primary to-secondary p-1 shadow-2xl relative z-20 overflow-hidden">
-                            <Image src={user.avatar || fallbackAvatar(user.username)} alt={user.name} fill unoptimized className="w-full h-full object-cover rounded-[22px] border-4 border-[#020617]" />
+            <div className="px-4 sm:px-6 -mt-16 relative z-10 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                    <div className="flex items-end gap-4">
+                        <div className="w-24 h-24 rounded-2xl bg-zinc-900 border-2 border-[#09090b] shadow-xl relative z-20 overflow-hidden flex-shrink-0">
+                            <Image src={user.avatar || fallbackAvatar(user.username)} alt={user.name} fill unoptimized className="w-full h-full object-cover" />
                         </div>
-                        <div className="space-y-1">
-                            <h1 className="text-3xl font-black text-white tracking-tight">{user.name}</h1>
-                            <p className="text-primary font-medium">@{user.username}</p>
+                        <div className="space-y-0.5 pb-1">
+                            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">{user.name}</h1>
+                            <p className="text-zinc-500 text-xs">@{user.username}</p>
                         </div>
                     </div>
 
                     {((currentUser?._id || currentUser?.id) === (user?._id || user?.id)) ? (
                         <button
                             onClick={() => router.push("/settings")}
-                            className="bg-slate-800 text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-lg hover:bg-slate-700 transition-all flex items-center gap-2 border border-white/10"
+                            className="btn-secondary !text-xs !py-1.5 !px-4 self-start sm:self-auto"
                         >
                             Edit Profile
                         </button>
                     ) : (
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2.5 self-start sm:self-auto">
                             <button
                                 onClick={() => router.push(`/messages?user=${user._id || user.id}`)}
-                                className="glass-panel px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-white/10 transition-all flex items-center gap-2"
+                                className="btn-secondary !text-xs !py-1.5 !px-3.5 flex items-center gap-1.5"
                             >
-                                <MessageCircle className="w-4 h-4" /> Message
+                                <MessageCircle className="w-3.5 h-3.5" /> Message
                             </button>
                             <button
                                 onClick={handleFollow}
                                 disabled={following}
-                                className={`${stats.isFollowing ? "bg-slate-800 text-white" : "btn-primary"} px-8 py-2.5 rounded-full text-sm font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2`}
+                                className={`${stats.isFollowing ? "btn-secondary" : "btn-primary"} !text-xs !py-1.5 !px-4 flex items-center gap-1.5`}
                             >
-                                {following ? <Loader2 className="w-4 h-4 animate-spin" /> : (stats.isFollowing ? <><UserMinus className="w-4 h-4" /> Unfollow</> : <><UserPlus className="w-4 h-4" /> Follow</>)}
+                                {following ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (stats.isFollowing ? <><UserMinus className="w-3.5 h-3.5" /> Unfollow</> : <><UserPlus className="w-3.5 h-3.5" /> Follow</>)}
                             </button>
                         </div>
                     )}
                 </div>
 
-                <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
                     {/* Sidebar Info */}
-                    <div className="space-y-6">
-                        <p className="text-slate-300 leading-relaxed text-sm">
+                    <div className="space-y-4">
+                        <p className="text-zinc-300 text-xs leading-relaxed">
                             {user.bio || "No bio yet."}
                         </p>
 
-                        <div className="space-y-3">
+                        <div className="space-y-2 text-xs text-zinc-400">
                             {user.location && (
-                                <div className="flex items-center gap-3 text-sm text-slate-400">
-                                    <MapPin className="w-4 h-4 text-primary/60" /> {user.location}
+                                <div className="flex items-center gap-2">
+                                    <MapPin className="w-3.5 h-3.5 text-zinc-500" /> {user.location}
                                 </div>
                             )}
                             {user.website && (
-                                <div className="flex items-center gap-3 text-sm text-slate-400">
-                                    <LinkIcon className="w-4 h-4 text-primary/60" />
-                                    <a href={user.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{user.website.replace("https://", "").replace("http://", "")}</a>
+                                <div className="flex items-center gap-2">
+                                    <LinkIcon className="w-3.5 h-3.5 text-zinc-500" />
+                                    <a href={user.website} target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white underline">{user.website.replace("https://", "").replace("http://", "")}</a>
                                 </div>
                             )}
-                            <div className="flex items-center gap-3 text-sm text-slate-400">
-                                <Calendar className="w-4 h-4 text-primary/60" /> Joined {format(new Date(user.createdAt), "MMMM yyyy")}
+                            <div className="flex items-center gap-2">
+                                <Calendar className="w-3.5 h-3.5 text-zinc-500" /> Joined {format(new Date(user.createdAt), "MMMM yyyy")}
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-6 pt-2">
+                        <div className="flex items-center gap-6 pt-2 border-t border-white/[0.06]">
                             <div
                                 onClick={() => setListModal({ isOpen: true, title: "Following", type: "following" })}
-                                className="flex flex-col cursor-pointer group"
+                                className="flex items-center gap-1.5 cursor-pointer group"
                             >
-                                <span className="text-white font-black text-lg group-hover:text-primary transition-colors">{stats.followingCount}</span>
-                                <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">Following</span>
+                                <span className="text-white font-semibold text-xs group-hover:text-zinc-300 transition-colors">{stats.followingCount}</span>
+                                <span className="text-zinc-500 text-xs">Following</span>
                             </div>
                             <div
                                 onClick={() => setListModal({ isOpen: true, title: "Followers", type: "followers" })}
-                                className="flex flex-col cursor-pointer group"
+                                className="flex items-center gap-1.5 cursor-pointer group"
                             >
-                                <span className="text-white font-black text-lg group-hover:text-primary transition-colors">{stats.followersCount}</span>
-                                <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">Followers</span>
+                                <span className="text-white font-semibold text-xs group-hover:text-zinc-300 transition-colors">{stats.followersCount}</span>
+                                <span className="text-zinc-500 text-xs">Followers</span>
                             </div>
                         </div>
                     </div>
 
                     {/* Main Content Areas */}
-                    <div className="md:col-span-2 space-y-6">
-                        <div className="flex items-center gap-2 border-b border-white/5 pb-1 overflow-x-auto no-scrollbar">
+                    <div className="md:col-span-2 space-y-4">
+                        <div className="flex items-center gap-2 border-b border-white/[0.08] pb-1 overflow-x-auto no-scrollbar">
                             {["posts", "media", "likes"].map(tab => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
-                                    className={`px-6 py-3 text-sm font-bold capitalize transition-all relative ${activeTab === tab ? "text-primary" : "text-slate-500 hover:text-white"}`}
+                                    className={`px-4 py-2 text-xs font-semibold capitalize transition-all relative ${activeTab === tab ? "text-white" : "text-zinc-500 hover:text-zinc-300"}`}
                                 >
                                     {tab}
-                                    {activeTab === tab && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+                                    {activeTab === tab && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-white" />}
                                 </button>
                             ))}
                         </div>
 
-                        <div className="space-y-4">
+                        <div className="space-y-3.5">
                             {activeTab === "posts" && (
                                 posts.length > 0 ? (
                                     posts.map(post => <PostCard key={post.id || post._id} {...post} author={user.name} avatar={user.avatar} id={post.id || post._id} likes={post.likesCount || 0} comments={post.commentsCount || 0} timestamp={format(new Date(post.createdAt), "MMM d")} />)
                                 ) : (
-                                    <div className="glass-panel p-10 text-center space-y-2">
-                                        <p className="text-slate-400 font-medium">No posts yet</p>
-                                        <p className="text-slate-600 text-xs text-balance">When {user.username} shares something, it will appear here.</p>
+                                    <div className="bg-[#111113]/80 border border-white/[0.08] rounded-xl p-10 text-center space-y-1.5">
+                                        <p className="text-zinc-300 text-xs font-medium">No posts yet</p>
+                                        <p className="text-zinc-500 text-[11px]">When {user.username} shares something, it will appear here.</p>
                                     </div>
                                 )
                             )}
                             {activeTab === "media" && (
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-2 gap-3">
                                     {posts.filter(p => p.media && p.media.length > 0).map(post => {
                                         const mediaItem = post.media[0];
                                         return (
-                                            <div key={post.id || post._id} className="aspect-square rounded-2xl overflow-hidden border border-white/5 cursor-pointer hover:border-white/20 transition-all bg-slate-900 flex items-center justify-center relative">
+                                            <div key={post.id || post._id} className="aspect-square rounded-xl overflow-hidden border border-white/[0.08] bg-zinc-950 flex items-center justify-center relative">
                                                 {mediaItem.type === "video" ? (
-                                                    <video src={mediaItem.url} className="w-full h-full object-cover opacity-80" muted />
+                                                    <video src={mediaItem.url} className="w-full h-full object-cover" muted />
                                                 ) : mediaItem.type === "image" ? (
                                                     <Image src={mediaItem.url} alt="Media" fill unoptimized className="w-full h-full object-cover" />
                                                 ) : (
-                                                    <span className="text-slate-500 font-bold uppercase">{mediaItem.type}</span>
+                                                    <span className="text-zinc-500 text-xs font-mono uppercase">{mediaItem.type}</span>
                                                 )}
                                             </div>
                                         );
                                     })}
                                     {posts.filter(p => p.media && p.media.length > 0).length === 0 && (
-                                        <div className="col-span-2 py-10 text-center text-slate-500 text-sm glass-panel rounded-2xl">No media found</div>
+                                        <div className="col-span-2 py-10 text-center text-zinc-500 text-xs bg-[#111113]/80 border border-white/[0.08] rounded-xl">No media found</div>
                                     )}
                                 </div>
                             )}
@@ -269,7 +273,6 @@ export default function ProfilePage() {
                 isOpen={listModal.isOpen}
                 onClose={() => {
                     setListModal(prev => ({ ...prev, isOpen: false }));
-                    // Refresh stats when modal closes to sync follow counts
                     const fetchStats = async () => {
                         const userId = user._id || user.id;
                         const relRes = await apiClient.get(`/interactions/relationships/${userId}`);

@@ -102,7 +102,7 @@ app.get("/api/v1/notifications", authenticate, async (req, res) => {
         const notifications = await Notification.find({ userId })
             .sort({ createdAt: -1 })
             .limit(50)
-            .select('type read data createdAt userId targetId actorId notificationType')
+            .select('type read data createdAt userId targetId actorId notificationType actor content targetImage')
             .lean();
 
         const data = notifications.map(n => {

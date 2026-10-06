@@ -28,11 +28,11 @@ export default function ProfileScreen() {
   };
 
   const settingsItems = [
-    { id: '1', title: 'Account Settings', icon: 'person-outline' },
-    { id: '2', title: 'Privacy & Security', icon: 'shield-checkmark-outline' },
-    { id: '3', title: 'Notifications', icon: 'notifications-outline' },
-    { id: '4', title: 'Help & Support', icon: 'help-circle-outline' },
-    { id: '5', title: 'About Zuvo', icon: 'information-circle-outline' },
+    { id: '1', title: 'Account Settings', icon: 'person-outline', onPress: () => Alert.alert('Account Settings', 'Account settings are coming soon.') },
+    { id: '2', title: 'Privacy & Security', icon: 'shield-checkmark-outline', onPress: () => Alert.alert('Privacy & Security', 'Privacy controls are coming soon.') },
+    { id: '3', title: 'Notifications', icon: 'notifications-outline', onPress: () => router.push('/notifications' as Href) },
+    { id: '4', title: 'Help & Support', icon: 'help-circle-outline', onPress: () => Alert.alert('Help & Support', 'Support is coming soon.') },
+    { id: '5', title: 'About Zuvo', icon: 'information-circle-outline', onPress: () => Alert.alert('Zuvo Mobile', 'Version 1.0.0') },
   ];
 
   return (
@@ -50,7 +50,10 @@ export default function ProfileScreen() {
           <Text style={styles.nameText}>{user?.name || 'Zuvo User'}</Text>
           <Text style={styles.emailText}>{user?.email || 'user@zuvo.com'}</Text>
 
-          <TouchableOpacity style={styles.editProfileBtn}>
+          <TouchableOpacity
+            style={styles.editProfileBtn}
+            onPress={() => Alert.alert('Edit Profile', 'Profile editing is coming soon.')}
+          >
             <Text style={styles.editProfileBtnText}>Edit Profile</Text>
           </TouchableOpacity>
         </View>
@@ -59,7 +62,7 @@ export default function ProfileScreen() {
         <View style={styles.settingsSection}>
           <Text style={styles.sectionTitle}>Settings</Text>
           {settingsItems.map((item) => (
-            <TouchableOpacity key={item.id} style={styles.settingsItem}>
+            <TouchableOpacity key={item.id} style={styles.settingsItem} onPress={item.onPress}>
               <View style={styles.settingsItemLeft}>
                 <Ionicons name={item.icon as any} size={22} color="#94A3B8" />
                 <Text style={styles.settingsItemText}>{item.title}</Text>

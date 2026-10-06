@@ -72,7 +72,7 @@ export default function OnboardingPage() {
                 animate={{ opacity: 1, scale: 1 }}
                 className="glass-panel max-w-lg w-full p-10 space-y-8 relative overflow-hidden"
             >
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-secondary to-accent" />
+                <div className="absolute top-0 left-0 w-full h-px bg-white/20" />
 
                 <div className="text-center space-y-4">
                     <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-primary/10 mb-2">

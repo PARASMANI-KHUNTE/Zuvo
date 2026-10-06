@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { uploadFile, deleteFile, getDownloadUrl, getStreamUrl } = require("../controllers/media");
+const { uploadFile, deleteFile, getDownloadUrl, getStreamUrl, compressMedia } = require("../controllers/media");
 const { upload } = require("../configs/cloudinary");
 const { authenticate } = require("@zuvo/shared");
 
@@ -45,5 +45,32 @@ router.get("/stream/:publicId", getStreamUrl);
  *       - bearerAuth: []
  */
 router.delete("/:publicId", authenticate, deleteFile);
+
+/**
+ * @openapi
+ * /api/v1/media/internal/compress:
+ *   post:
+ *     tags: [Media]
+ *     summary: Generate compressed derivatives of an uploaded asset (internal/worker use)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [publicId]
+ *             properties:
+ *               publicId:
+ *                 type: string
+ *               resourceType:
+ *                 type: string
+ *                 enum: [image, video]
+ *               userId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Compression scheduled
+ */
+router.post("/internal/compress", compressMedia);
 
 module.exports = router;

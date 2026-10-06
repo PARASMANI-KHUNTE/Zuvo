@@ -1,0 +1,327 @@
+version: '3.8'
+
+services:
+  # -------------------------------------------------------------
+  # Infrastructure: MongoDB
+  # -------------------------------------------------------------
+  mongodb:
+    image: mongo:7.0
+    container_name: zuvo-mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_DATABASE: Zuvo
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - zuvo-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -------------------------------------------------------------
+  # Infrastructure: Redis
+  # -------------------------------------------------------------
+  redis:
+    image: redis:7.2-alpine
+    container_name: zuvo-redis
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - zuvo-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -------------------------------------------------------------
+  # Microservices
+  # -------------------------------------------------------------
+  auth:
+    build:
+      context: ./backend
+      dockerfile: ./services/auth/Dockerfile
+    container_name: zuvo-auth
+    restart: always
+    environment:
+      - PORT=8000
+      - DB_NAME=Zuvo
+      - MONGODB_URI=mongodb://mongodb:27017/Zuvo
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET}
+      - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET}
+      - ACCESS_TOKEN_EXPIRY=${ACCESS_TOKEN_EXPIRY:-15m}
+      - REFRESH_TOKEN_EXPIRY=${REFRESH_TOKEN_EXPIRY:-7d}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - EMAIL_FROM=${EMAIL_FROM}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - zuvo-network
+
+  blog:
+    build:
+      context: ./backend
+      dockerfile: ./services/blog/Dockerfile
+    container_name: zuvo-blog
+    restart: always
+    environment:
+      - PORT=8001
+      - DB_NAME=Zuvo
+      - MONGODB_URI=mongodb://mongodb:27017/Zuvo
+      - REDIS_URL=redis://redis:6379
+      - AUTH_INTERNAL_URL=http://auth:8000
+      - BLOG_INTERNAL_URL=http://blog:8001
+      - INTERACTIONS_INTERNAL_URL=http://interactions:8002
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - zuvo-network
+
+  interactions:
+    build:
+      context: ./backend
+      dockerfile: ./services/interactions/Dockerfile
+    container_name: zuvo-interactions
+    restart: always
+    environment:
+      - PORT=8002
+      - DB_NAME=Zuvo
+      - MONGODB_URI=mongodb://mongodb:27017/Zuvo
+      - REDIS_URL=redis://redis:6379
+      - AUTH_INTERNAL_URL=http://auth:8000
+      - BLOG_INTERNAL_URL=http://blog:8001
+      - INTERACTIONS_INTERNAL_URL=http://interactions:8002
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - zuvo-network
+
+  media:
+    build:
+      context: ./backend
+      dockerfile: ./services/media/Dockerfile
+    container_name: zuvo-media
+    restart: always
+    environment:
+      - PORT=8003
+      - DB_NAME=Zuvo
+      - MONGODB_URI=mongodb://mongodb:27017/Zuvo
+      - REDIS_URL=redis://redis:6379
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - AUTH_INTERNAL_URL=http://auth:8000
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - zuvo-network
+
+  realtime:
+    build:
+      context: ./backend
+      dockerfile: ./services/realtime/Dockerfile
+    container_name: zuvo-realtime
+    restart: always
+    environment:
+      - PORT=8004
+      - DB_NAME=Zuvo
+      - MONGODB_URI=mongodb://mongodb:27017/Zuvo
+      - REDIS_URL=redis://redis:6379
+      - AUTH_INTERNAL_URL=http://auth:8000
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - zuvo-network
+
+  feed:
+    build:
+      context: ./backend
+      dockerfile: ./services/feed/Dockerfile
+    container_name: zuvo-feed
+    restart: always
+    environment:
+      - PORT=8005
+      - DB_NAME=Zuvo
+      - MONGODB_URI=mongodb://mongodb:27017/Zuvo
+      - REDIS_URL=redis://redis:6379
+      - AUTH_INTERNAL_URL=http://auth:8000
+      - BLOG_INTERNAL_URL=http://blog:8001
+      - INTERACTIONS_INTERNAL_URL=http://interactions:8002
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - zuvo-network
+
+  search:
+    build:
+      context: ./backend
+      dockerfile: ./services/search/Dockerfile
+    container_name: zuvo-search
+    restart: always
+    environment:
+      - PORT=8006
+      - DB_NAME=Zuvo
+      - MONGODB_URI=mongodb://mongodb:27017/Zuvo
+      - REDIS_URL=redis://redis:6379
+      - AUTH_INTERNAL_URL=http://auth:8000
+      - INTERACTIONS_INTERNAL_URL=http://interactions:8002
+      - BLOG_INTERNAL_URL=http://blog:8001
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - zuvo-network
+
+  chat:
+    build:
+      context: ./backend
+      dockerfile: ./services/chat/Dockerfile
+    container_name: zuvo-chat
+    restart: always
+    environment:
+      - PORT=8007
+      - DB_NAME=Zuvo
+      - MONGODB_URI=mongodb://mongodb:27017/Zuvo
+      - REDIS_URL=redis://redis:6379
+      - AUTH_INTERNAL_URL=http://auth:8000
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - zuvo-network
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: ./services/worker/Dockerfile
+    container_name: zuvo-worker
+    restart: always
+    environment:
+      - DB_NAME=Zuvo
+      - MONGODB_URI=mongodb://mongodb:27017/Zuvo
+      - REDIS_URL=redis://redis:6379
+      - AUTH_INTERNAL_URL=http://auth:8000
+      - BLOG_INTERNAL_URL=http://blog:8001
+      - INTERACTIONS_INTERNAL_URL=http://interactions:8002
+      - MEDIA_INTERNAL_URL=http://media:8003
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - zuvo-network
+
+  # -------------------------------------------------------------
+  # API Gateway
+  # -------------------------------------------------------------
+  gateway:
+    build:
+      context: ./backend
+      dockerfile: ./gateway/Dockerfile
+    container_name: zuvo-gateway
+    restart: always
+    environment:
+      - GATEWAY_PORT=5000
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      - AUTH_SERVICE_URL=http://auth:8000
+      - BLOG_SERVICE_URL=http://blog:8001
+      - INTERACTIONS_SERVICE_URL=http://interactions:8002
+      - MEDIA_SERVICE_URL=http://media:8003
+      - REALTIME_SERVICE_URL=http://realtime:8004
+      - FEED_SERVICE_URL=http://feed:8005
+      - SEARCH_SERVICE_URL=http://search:8006
+      - CHAT_SERVICE_URL=http://chat:8007
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - auth
+      - blog
+      - interactions
+      - media
+      - realtime
+      - feed
+      - search
+      - chat
+      - redis
+    ports:
+      - "5000:5000"
+    networks:
+      - zuvo-network
+
+  # -------------------------------------------------------------
+  # Frontend (Next.js)
+  # -------------------------------------------------------------
+  frontend:
+    build:
+      context: ./Web
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:5000/api/v1}
+        - NEXT_PUBLIC_REALTIME_URL=${NEXT_PUBLIC_REALTIME_URL:-http://localhost:5000}
+    container_name: zuvo-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    networks:
+      - zuvo-network
+
+  # -------------------------------------------------------------
+  # Optional: Nginx Reverse Proxy (Routes port 80/443 to frontend & gateway)
+  # -------------------------------------------------------------
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: zuvo-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - gateway
+    networks:
+      - zuvo-network
+
+volumes:
+  mongo-data:
+  redis-data:
+
+networks:
+  zuvo-network:
+    driver: bridge

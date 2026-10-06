@@ -60,6 +60,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return () => apiClient.interceptors.request.eject(interceptor);
     }, []);
 
+    // Keep the in-memory token in sync with the silent refresh performed by
+    // the API client's 401 interceptor (also triggers a socket reconnect).
+    useEffect(() => {
+        const onRefreshed = (event: Event) => {
+            const token = (event as CustomEvent<{ accessToken: string }>).detail.accessToken;
+            tokenRef.current = token;
+            setAccessToken(token);
+        };
+        const onExpired = () => {
+            tokenRef.current = null;
+            setAccessToken(null);
+            setUser(null);
+        };
+        window.addEventListener("zuvo:token-refreshed", onRefreshed);
+        window.addEventListener("zuvo:session-expired", onExpired);
+        return () => {
+            window.removeEventListener("zuvo:token-refreshed", onRefreshed);
+            window.removeEventListener("zuvo:session-expired", onExpired);
+        };
+    }, []);
+
     const checkAuth = async () => {
         // Prevent strictly concurrent checkAuth calls (e.g. React Strict Mode double-mounts)
         if (authPromiseRef.current) return authPromiseRef.current;

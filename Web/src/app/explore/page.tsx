@@ -4,6 +4,8 @@ import { Search, TrendingUp, Users, Hash, Loader2 } from "lucide-react";
 import Image from "next/image";
 import apiClient from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface Trend {
     tag: string;
@@ -22,6 +24,7 @@ interface SuggestedUser {
 }
 
 export default function ExplorePage() {
+    const router = useRouter();
     const { user: currentUser } = useAuth();
     const [searchQuery, setSearchQuery] = useState("");
     const [trending, setTrending] = useState<Trend[]>([]);
@@ -71,92 +74,111 @@ export default function ExplorePage() {
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
         if (searchQuery.trim()) {
-            window.location.href = `/search?q=${encodeURIComponent(searchQuery)}`;
+            router.push(`/search?q=${encodeURIComponent(searchQuery)}`);
         }
     };
 
     if (loading) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-                <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                <p className="text-slate-400 font-medium text-lg">Curating discovery feed...</p>
+            <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
+                <Loader2 className="w-5 h-5 text-zinc-500 animate-spin" />
+                <p className="text-zinc-500 font-medium text-xs">Curating discovery feed...</p>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-                <p className="text-red-400 font-medium">{error}</p>
-                <button onClick={() => { setLoading(true); setError(null); fetchDiscovery(); }} className="btn-primary px-6 py-2">Retry</button>
+            <div className="bg-[#111113]/80 border border-white/[0.08] rounded-xl p-8 text-center space-y-3 max-w-lg mx-auto mt-6">
+                <p className="text-rose-400 text-xs font-medium">{error}</p>
+                <button
+                    onClick={() => { setLoading(true); setError(null); fetchDiscovery(); }}
+                    className="btn-secondary !text-xs !py-1.5 !px-4"
+                >
+                    Retry
+                </button>
             </div>
         );
     }
 
     return (
-        <div className="w-full max-w-3xl mx-auto pb-20 space-y-8">
+        <div className="w-full max-w-4xl mx-auto space-y-6">
             {/* Search Bar */}
             <form onSubmit={handleSearch} className="relative group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-zinc-300 transition-colors" />
                 <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search people, posts, or tags..."
-                    className="w-full bg-[#0f172a]/60 backdrop-blur-xl border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium"
+                    placeholder="Search people, tags, or topics..."
+                    className="w-full bg-[#111113]/80 border border-white/[0.08] hover:border-white/[0.14] focus:border-white/30 rounded-xl py-3 pl-10 pr-4 text-xs text-white placeholder-zinc-500 outline-none transition-all"
                 />
             </form>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Left Column (Tags & Users) */}
-                <div className="col-span-1 space-y-6">
-                    {/* Trending Tags */}
-                    <div className="glass-panel p-5 rounded-2xl hover-glow">
-                        <div className="flex items-center gap-2 mb-4">
-                            <TrendingUp className="w-5 h-5 text-primary" />
-                            <h2 className="font-bold text-slate-100 uppercase text-xs tracking-wider">Trending</h2>
-                        </div>
-                        <div className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Trending Topics */}
+                <div className="bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08] rounded-xl p-5 space-y-4">
+                    <div className="flex items-center gap-2 border-b border-white/[0.06] pb-3">
+                        <TrendingUp className="w-4 h-4 text-zinc-400" />
+                        <h2 className="font-semibold text-zinc-300 uppercase text-xs tracking-wider">Trending Topics</h2>
+                    </div>
+                    {trending.length > 0 ? (
+                        <div className="space-y-3">
                             {trending.map((trend, i) => (
-                                <div key={i} className="flex flex-col group cursor-pointer" onClick={() => window.location.href = `/search?q=${trend.tag}`}>
-                                    <span className="font-semibold text-sm text-slate-200 group-hover:text-primary transition-colors flex items-center gap-1">
-                                        <Hash className="w-3.5 h-3.5" />{trend.tag}
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 font-medium">{trend.postsCount} interactions</span>
+                                <div
+                                    key={i}
+                                    className="flex items-center justify-between group cursor-pointer py-1"
+                                    onClick={() => router.push(`/search?q=${encodeURIComponent(trend.tag)}`)}
+                                >
+                                    <div className="flex flex-col">
+                                        <span className="font-medium text-xs text-zinc-200 group-hover:text-white transition-colors flex items-center gap-1">
+                                            <Hash className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300" />
+                                            {trend.tag}
+                                        </span>
+                                        <span className="text-[11px] text-zinc-500">{trend.postsCount} posts</span>
+                                    </div>
+                                    <span className="text-[11px] text-zinc-600 group-hover:text-zinc-400 transition-colors">&rarr;</span>
                                 </div>
                             ))}
                         </div>
-                    </div>
+                    ) : (
+                        <p className="text-xs text-zinc-500 py-2">No trending topics found.</p>
+                    )}
+                </div>
 
-                    {/* Suggested Users */}
-                    <div className="glass-panel p-5 rounded-2xl hover-glow">
-                        <div className="flex items-center gap-2 mb-4">
-                            <Users className="w-5 h-5 text-primary" />
-                            <h2 className="font-bold text-slate-100 uppercase text-xs tracking-wider">Who to follow</h2>
-                        </div>
-                        <div className="space-y-4">
+                {/* Who to Follow */}
+                <div className="bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08] rounded-xl p-5 space-y-4">
+                    <div className="flex items-center gap-2 border-b border-white/[0.06] pb-3">
+                        <Users className="w-4 h-4 text-zinc-400" />
+                        <h2 className="font-semibold text-zinc-300 uppercase text-xs tracking-wider">Suggested Creators</h2>
+                    </div>
+                    {suggested.length > 0 ? (
+                        <div className="space-y-3.5">
                             {suggested.map((user, i) => (
-                                <div key={i} className="flex items-center justify-between group">
-                                    <div className="flex items-center gap-3">
-                                        <Image
-                                            src={user.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=user"}
-                                            width={40}
-                                            height={40}
-                                            unoptimized
-                                            className="w-10 h-10 rounded-full cursor-pointer hover:opacity-80 transition-opacity border border-white/10"
-                                            alt={user.name}
-                                            onClick={() => window.location.href = `/profile/${user.username}`}
-                                        />
-                                        <div className="flex flex-col cursor-pointer" onClick={() => window.location.href = `/profile/${user.username}`}>
-                                            <span className="font-semibold text-[13px] text-slate-200 group-hover:text-white transition-colors truncate max-w-[80px]">{user.name}</span>
-                                            <span className="text-[10px] text-slate-500">@{user.username}</span>
+                                <div key={i} className="flex items-center justify-between gap-3 group">
+                                    <Link href={`/profile/${user.username}`} className="flex items-center gap-3 min-w-0 flex-1">
+                                        <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 border border-white/10 relative flex-shrink-0">
+                                            <Image
+                                                src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
+                                                fill
+                                                unoptimized
+                                                className="object-cover"
+                                                alt={user.name}
+                                            />
                                         </div>
-                                    </div>
+                                        <div className="flex flex-col min-w-0">
+                                            <span className="font-medium text-xs text-zinc-200 group-hover:text-white transition-colors truncate">
+                                                {user.name}
+                                            </span>
+                                            <span className="text-[11px] text-zinc-500 truncate">@{user.username}</span>
+                                        </div>
+                                    </Link>
                                     <button
                                         onClick={() => handleFollow(user)}
-                                        className={`text-[10px] font-bold px-3 py-1.5 rounded-full border transition-all uppercase ${followingMap[user._id || user.id]
-                                            ? "bg-primary/20 text-primary border-primary/30 hover:bg-primary/30"
-                                            : "text-primary border-primary/30 hover:text-white hover:bg-primary/20"
+                                        className={`text-xs font-medium px-3 py-1 rounded-full transition-all flex-shrink-0 ${
+                                            followingMap[user._id || user.id]
+                                                ? "bg-white/[0.08] text-zinc-300 hover:bg-white/[0.12]"
+                                                : "bg-white text-zinc-950 hover:bg-zinc-200"
                                         }`}
                                     >
                                         {followingMap[user._id || user.id] ? "Following" : "Follow"}
@@ -164,25 +186,9 @@ export default function ExplorePage() {
                                 </div>
                             ))}
                         </div>
-                    </div>
-                </div>
-
-                {/* Right Column (Masonry Discovery) */}
-                <div className="col-span-1 md:col-span-2">
-                    <h2 className="font-bold text-white mb-4 flex items-center gap-2 text-sm uppercase tracking-wider">
-                        Discovery Feed
-                    </h2>
-                    <div className="columns-2 gap-4 space-y-4">
-                        {/* Discovery posts could be fetched from feed/explore in future, using placeholders for visual excellence now */}
-                        {[1, 2, 3, 4, 5, 6].map((i) => (
-                            <div key={i} className="relative rounded-xl overflow-hidden glass-panel group cursor-pointer break-inside-avoid shadow-lg border-white/5">
-                                <Image src={`https://images.unsplash.com/photo-${1550000000000 + i * 100000}?q=80&w=800&auto=format&fit=crop`} alt="Discovery" width={800} height={600} unoptimized className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-700" />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
-                                    <span className="font-bold text-xs text-white drop-shadow-md">Curated for you</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    ) : (
+                        <p className="text-xs text-zinc-500 py-2">No creators to recommend right now.</p>
+                    )}
                 </div>
             </div>
         </div>

@@ -2,12 +2,10 @@
 import React from "react";
 import Image from "next/image";
 import { Home, Compass, Bell, MessageSquare, Settings, LogOut, User, Plus } from "lucide-react";
-import { motion } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
 import apiClient from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useModals } from "@/context/ModalContext";
-import Link from "next/link";
 
 export default function Sidebar() {
     const router = useRouter();
@@ -27,37 +25,67 @@ export default function Sidebar() {
     };
 
     return (
-        <aside className="fixed left-0 top-24 bottom-6 w-64 ml-6 hidden lg:flex flex-col gap-6">
-            {/* Navigation */}
-            <div className="flex flex-col gap-4">
-                <div className="glass-panel p-4 flex flex-col gap-1">
-                    <SidebarItem icon={<Home className="w-5 h-5" />} label="Home" active={pathname === "/" || pathname === "/home"} onClick={() => router.push("/")} />
-                    <SidebarItem icon={<Compass className="w-5 h-5" />} label="Explore" active={pathname === "/explore"} onClick={() => router.push("/explore")} />
-                    <SidebarItem icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m10 8 6 4-6 4V8Z" /><rect width="16" height="20" x="4" y="2" rx="2" ry="2" /></svg>} label="Shorts" active={pathname === "/shorts"} onClick={() => router.push("/shorts")} color="text-rose-400" />
-                    <SidebarItem icon={<Bell className="w-5 h-5" />} label="Notifications" active={pathname === "/notifications"} onClick={() => router.push("/notifications")} />
-                    <SidebarItem icon={<MessageSquare className="w-5 h-5" />} label="Messages" active={pathname === "/messages"} onClick={() => router.push("/messages")} />
-                </div>
+        <div className="flex flex-col gap-3 w-full">
+            {/* Navigation Card */}
+            <div className="bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08] rounded-xl p-2 flex flex-col gap-0.5">
+                <SidebarItem
+                    icon={<Home className="w-4 h-4" />}
+                    label="Home"
+                    active={pathname === "/" || pathname === "/home"}
+                    onClick={() => router.push("/")}
+                />
+                <SidebarItem
+                    icon={<Compass className="w-4 h-4" />}
+                    label="Explore"
+                    active={pathname === "/explore"}
+                    onClick={() => router.push("/explore")}
+                />
+                <SidebarItem
+                    icon={
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="m10 8 6 4-6 4V8Z" />
+                            <rect width="16" height="20" x="4" y="2" rx="2" ry="2" />
+                        </svg>
+                    }
+                    label="Shorts"
+                    active={pathname === "/shorts"}
+                    onClick={() => router.push("/shorts")}
+                />
+                <SidebarItem
+                    icon={<Bell className="w-4 h-4" />}
+                    label="Notifications"
+                    active={pathname === "/notifications"}
+                    onClick={() => router.push("/notifications")}
+                />
+                <SidebarItem
+                    icon={<MessageSquare className="w-4 h-4" />}
+                    label="Messages"
+                    active={pathname === "/messages"}
+                    onClick={() => router.push("/messages")}
+                />
 
-                <button
-                    onClick={() => openModal("compose")}
-                    className="btn-primary w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-neon-blue group"
-                >
-                    <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
-                    <span>Post</span>
-                </button>
+                <div className="pt-2 mt-1 border-t border-white/[0.06]">
+                    <button
+                        onClick={() => openModal("compose")}
+                        className="w-full py-2.5 px-3 rounded-lg bg-white text-zinc-950 hover:bg-zinc-200 active:scale-[0.98] transition-all font-medium text-xs flex items-center justify-center gap-2 shadow-sm"
+                    >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>New Post</span>
+                    </button>
+                </div>
             </div>
 
-            {/* User / Settings Section  */}
-            <div className="glass-panel p-4 flex flex-col gap-1 mt-auto">
-                {/* Profile link using real username */}
+            {/* Profile & Settings Section */}
+            <div className="bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08] rounded-xl p-2 flex flex-col gap-0.5">
                 {user?.username && (
                     <SidebarItem
                         icon={
-                            <div className="w-5 h-5 rounded-full overflow-hidden bg-slate-700 border border-white/10 flex-shrink-0 relative">
-                                {user.avatar
-                                    ? <Image src={user.avatar} alt="me" fill unoptimized className="object-cover" />
-                                    : <User className="w-full h-full p-0.5 text-slate-400" />
-                                }
+                            <div className="w-4 h-4 rounded-full overflow-hidden bg-zinc-800 border border-white/10 relative">
+                                {user.avatar ? (
+                                    <Image src={user.avatar} alt="me" fill unoptimized className="object-cover" />
+                                ) : (
+                                    <User className="w-full h-full p-0.5 text-zinc-400" />
+                                )}
                             </div>
                         }
                         label="Profile"
@@ -65,15 +93,20 @@ export default function Sidebar() {
                         onClick={() => router.push(`/profile/${user.username}`)}
                     />
                 )}
-                <SidebarItem icon={<Settings className="w-5 h-5" />} label="Settings" active={pathname === "/settings"} onClick={() => router.push("/settings")} />
                 <SidebarItem
-                    icon={<LogOut className="w-5 h-5 text-red-400" />}
+                    icon={<Settings className="w-4 h-4" />}
+                    label="Settings"
+                    active={pathname === "/settings"}
+                    onClick={() => router.push("/settings")}
+                />
+                <SidebarItem
+                    icon={<LogOut className="w-4 h-4 text-zinc-500" />}
                     label="Logout"
-                    color="text-red-400"
                     onClick={handleLogout}
+                    textColor="text-zinc-500 hover:text-rose-400"
                 />
             </div>
-        </aside>
+        </div>
     );
 }
 
@@ -81,20 +114,28 @@ interface SidebarItemProps {
     icon: React.ReactNode;
     label: string;
     active?: boolean;
-    color?: string;
+    textColor?: string;
     onClick?: () => void;
 }
 
-const SidebarItem = React.memo(function SidebarItem({ icon, label, active = false, color = "text-slate-400", onClick }: SidebarItemProps) {
+const SidebarItem = React.memo(function SidebarItem({
+    icon,
+    label,
+    active = false,
+    textColor,
+    onClick,
+}: SidebarItemProps) {
     return (
-        <motion.button
-            whileHover={{ x: 4 }}
+        <button
             onClick={onClick}
-            className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all w-full ${active ? "bg-white/5 text-primary border border-white/10" : `${color} hover:bg-white/5 hover:text-white`}`}
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all w-full text-left ${
+                active
+                    ? "bg-white/[0.08] text-white"
+                    : textColor || "text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04]"
+            }`}
         >
-            {icon}
-            <span className="text-sm font-semibold">{label}</span>
-            {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary shadow-neon-cyan" />}
-        </motion.button>
+            <span className={active ? "text-white" : "text-zinc-400"}>{icon}</span>
+            <span className="truncate">{label}</span>
+        </button>
     );
 });

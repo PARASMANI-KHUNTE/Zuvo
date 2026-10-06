@@ -72,6 +72,14 @@ export default function SettingsPage() {
         }
     }, [authLoading, isAuthenticated, router]);
 
+    // Support deep links such as /settings?tab=notifications
+    useEffect(() => {
+        const tab = new URLSearchParams(window.location.search).get("tab");
+        if (tab && SETTINGS_TABS.some(t => t.id === tab)) {
+            setActiveTab(tab);
+        }
+    }, []);
+
     useEffect(() => {
         if (user) {
             setFormData({
@@ -226,12 +234,12 @@ export default function SettingsPage() {
     }
 
     return (
-        <div className="w-full max-w-5xl mx-auto flex flex-col md:flex-row gap-8 pb-20 items-start mt-8">
+        <div className="w-full max-w-4xl mx-auto flex flex-col md:flex-row gap-6 items-start">
 
             {/* Left Sidebar Nav */}
-            <div className="w-full md:w-72 glass-panel p-4 rounded-2xl flex-shrink-0 border border-white/5">
-                <h1 className="text-xl font-bold text-white mb-6 px-2">Settings</h1>
-                <nav className="flex flex-col gap-1">
+            <div className="w-full md:w-56 bg-[#111113]/80 backdrop-blur-xl border border-white/[0.08] p-2.5 rounded-xl flex-shrink-0">
+                <h1 className="text-sm font-semibold text-white mb-3 px-2">Settings</h1>
+                <nav className="flex flex-col gap-0.5">
                     {SETTINGS_TABS.map((tab) => {
                         const Icon = tab.icon;
                         const isActive = activeTab === tab.id;
@@ -239,12 +247,12 @@ export default function SettingsPage() {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm w-full text-left ${isActive
-                                    ? "bg-primary text-white shadow-[0_0_15px_rgba(235,54,120,0.3)]"
-                                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all font-medium text-xs w-full text-left ${isActive
+                                    ? "bg-white/[0.08] text-white font-semibold"
+                                    : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200"
                                     }`}
                             >
-                                <Icon className="w-5 h-5" />
+                                <Icon className="w-4 h-4" />
                                 {tab.label}
                             </button>
                         );
@@ -257,8 +265,8 @@ export default function SettingsPage() {
 
                 {activeTab === "account" && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="glass-panel overflow-hidden rounded-2xl border border-white/5 relative">
-                            <div className="h-40 w-full relative group bg-slate-800">
+                        <div className="bg-[#111113]/80 backdrop-blur-xl overflow-hidden rounded-xl border border-white/[0.08] relative">
+                            <div className="h-36 sm:h-44 w-full relative group bg-zinc-900">
                                 <Image
                                     src={user?.banner || "/default-banner.jpg"}
                                     alt="Banner"
@@ -494,7 +502,12 @@ export default function SettingsPage() {
                                     <p className="font-bold text-slate-200">Two-Factor Authentication</p>
                                     <p className="text-xs text-slate-500">Add an extra layer of security to your account.</p>
                                 </div>
-                                <button className="text-xs font-bold text-primary hover:underline px-4 py-2 bg-primary/10 rounded-lg">Enable</button>
+                                <button
+                                    onClick={() => toast("Two-factor authentication is coming soon!", "info")}
+                                    className="text-xs font-bold text-primary hover:underline px-4 py-2 bg-primary/10 rounded-lg"
+                                >
+                                    Enable
+                                </button>
                             </div>
                         </div>
                     </div>

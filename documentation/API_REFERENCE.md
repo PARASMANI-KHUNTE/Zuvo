@@ -13,7 +13,7 @@ Most endpoints return a standard JSON response:
   "success": true,
   "data": { ... }, // Optional
   "message": "Success message" // Optional
-}
+}https://youtu.be/gwl6JaZnDZo
 ```
 ---
 
