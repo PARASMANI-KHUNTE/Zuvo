@@ -10,6 +10,7 @@
     "services/chat"
   ],
   "scripts": {
+    "test": "node --test tests/*.test.js",
     "auth:dev": "npm run dev -w services/auth",
     "blog:dev": "npm run dev -w services/blog",
     "gateway:dev": "npm run dev -w gateway",
